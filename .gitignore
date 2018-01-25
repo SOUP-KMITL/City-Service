@@ -1,0 +1,8 @@
+.*
+*~
+__pycache__/
+db/
+!.gitignore
+!.dockerignore
+requirements.txt
+cityservice_key
