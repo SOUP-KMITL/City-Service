@@ -6,3 +6,4 @@ db/
 !.dockerignore
 requirements.txt
 cityservice_key
+verbose.out
