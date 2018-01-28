@@ -1,6 +1,6 @@
+from urllib.parse import quote
 import paramiko
 import requests
-import json
 
 sshclient = None
 HOST = "https://cityservice.smartcity.kmitl.io/api/v1"
@@ -93,6 +93,29 @@ def createAction(authUser, authPass, actionName, kind, code):
             raise Exception(httpCode, error)
 
 
+def deleteAction(authUser, authPass, actionName):
+    try:
+        resp = requests.delete(
+                HOST_NS + "/actions/" + actionName,
+                auth=(authUser, authPass))
+
+        httpCode = resp.status_code
+        result = resp.json()
+
+    except requests.ConnectionError:
+        print("deleteAction: couldn't connect to external service")
+        raise
+    except requests.ConnectTimeout:
+        print("deleteAction: connection to external service timeout")
+        raise
+    else:
+        if httpCode != 200:
+            error = result.get("error", "Couldn't find error") + \
+                    " => " + str(result.get("code", 0))
+            print("deleteAction: " + error)
+            raise Exception(httpCode, error)
+
+
 # All capitalized characters for <method>
 def createApi(authUser, authPass, actionName, basePath, path, method):
     backendUrl = HOST + "/web/_/default/" + actionName + ".http"
@@ -135,4 +158,30 @@ def createApi(authUser, authPass, actionName, basePath, path, method):
             error = result.get("error", "Couldn't find error") + \
                     " => " + str(result.get("code", 0))
             print("createApi: " + error)
+            raise Exception(httpCode, error)
+
+
+def deleteApi(authUser, authPass, basePath):
+    middleUrl = ("/web/whisk.system/apimgmt/deleteApi.http?"
+                 "accesstoken=DUMMY+TOKEN&basepath=")
+    tailUrl = quote(basePath) + "&spaceguid=" + authUser
+    try:
+        resp = requests.delete(
+                HOST + middleUrl + tailUrl,
+                auth=(authUser, authPass))
+
+        httpCode = resp.status_code
+        result = resp.json()
+
+    except requests.ConnectionError:
+        print("deleteApi: couldn't connect to external service")
+        raise
+    except requests.ConnectTimeout:
+        print("deleteApi: connection to external service timeout")
+        raise
+    else:
+        if httpCode != 200:
+            error = result.get("error", "Couldn't find error") + \
+                    " => " + str(result.get("code", 0))
+            print("deleteApi: " + error)
             raise Exception(httpCode, error)
