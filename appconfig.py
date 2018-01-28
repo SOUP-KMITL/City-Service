@@ -16,6 +16,12 @@ API_VER = 1
 EXT_API_PORT = 443
 INT_API_PORT = 8080
 
+SSH_HOST = "cityservice.smartcity.kmitl.io"
+SSH_USER = "ubuntu"
+SSH_PRIV = "./cityservice_key"
+
+TEMPLATE = "./template.js"
+
 if env == "PROD":
     #  Production (public server) configuration
     API_PREFIX     = "/services"

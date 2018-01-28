@@ -1,103 +1,147 @@
 from flask import Flask, request, jsonify
-#  from flask_pymongo import PyMongo
-#  ***REMOVED***
-#  import time
-#  import uuid
-import paramiko
+from flask_pymongo import PyMongo
+from pymongo.errors import DuplicateKeyError
+***REMOVED***
+import uuid
 
 # Custom modules and packages
 import appconfig
+import wskutil
 
 app = Flask(__name__)
 app.config.from_object("appconfig.DefaultConfig")
-#  mongo = PyMongo(app)
-key = paramiko.RSAKey.from_private_key_file("./cityservice_key")
-sshclient = paramiko.SSHClient()
-sshclient.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-sshclient.connect(
-        hostname="cityservice.smartcity.kmitl.io",
-        username="ubuntu",
-        pkey=key)
+mongo = PyMongo(app)
+wskutil.initSshSession(
+        appconfig.SSH_HOST,
+        appconfig.SSH_USER,
+        appconfig.SSH_PRIV)
 
 
 @app.route(appconfig.API_PREFIX + "/", methods=['POST'])
 def createService():
     retResp = {"success": False, "message": ""}
-    httpCode = 400
 
     if not request.is_json:
         retResp["message"] = "Invalid request body type, expected JSON"
-        return jsonify(retResp), httpCode
+        return jsonify(retResp), 500
 
     incomData = request.get_json()
     username = incomData.get("username", "")
+    serviceName = incomData.get("serviceName", "")
+    incomData["namespace"] = username
 
-    isCreated, name, pswd = createOpenWhiskUser(username)
+    if not insertService(incomData):
+        retResp["message"] = "Service " + serviceName + " already exists"
+        return jsonify(retResp), 400
 
-    retResp = {
-            "isCreated": isCreated,
-            "username": name,
-            "password": pswd
-    }
+    if not updateNamespace(username, 1):
+        retResp["message"] = "Couldn't update/inset namespace " + username
+        return jsonify(retResp), 500
 
-    httpCode = 200
+    auth = mongo.db.namespace.find_one({"name": username}, {"_id": False})
+    f = open(appconfig.TEMPLATE, "r")
+    #  code = repr(f.read())
+    code = f.read()
 
-    return jsonify(retResp), httpCode
+***REMOVED***
+        wskutil.createAction(
+                auth.get("authUser", ""),
+                auth.get("authPass", ""),
+                serviceName, "nodejs:6", code)
+        wskutil.createApi(
+                auth.get("authUser", ""),
+                auth.get("authPass", ""),
+                serviceName,
+                incomData.get("basePath", "/base"),
+                incomData.get("path", "/path"), "GET")
+    except (requests.ConnectionError, requests.ConnectTimeout) as e:
+        retResp["message"] = e.__str__()
+        return jsonify(retResp), 500
+    except Exception as e:
+        retResp["message"] = e.args[1]
+        return jsonify(retResp), e.args[0]
+
+    retResp["message"] = "service " + serviceName + " is created."
+    retResp["success"] = True
+
+    return jsonify(retResp), 201
 
 
-@app.route(appconfig.API_PREFIX + "/<serviceId>/", methods=['GET', 'DELETE'])
+@app.route(appconfig.API_PREFIX + "/<serviceId>/", methods=['DELETE'])
 def deleteService(serviceId):
     retResp = {"success": False, "message": ""}
-    httpCode = 400
 
-    if request.method == 'GET':
-        retResp["message"] = "Recieve only DELETE message for now"
-        return jsonify(retResp), httpCode
+    service = mongo.db.service.find_one_and_delete({"serviceId": serviceId})
 
-    isDeleted, result = deleteOpenWhiskUser(serviceId)
+    if service is None:
+        retResp["message"] = "Couldn't find serviceId " + serviceId
+        return jsonify(retResp), 400
 
-    if not isDeleted:
-        retResp["message"] = result
-        return jsonify(retResp), httpCode
+    namespace = service.get("namespace", "")
+
+    if not updateNamespace(namespace, -1):
+        retResp["message"] = "Couldn't update/delete namespace " + namespace
+        return jsonify(retResp), 500
 
     retResp["success"] = True
-    retResp["message"] = result
+    retResp["message"] = "Service " + \
+        service.get("serviceName", "") + \
+        " is successfully deleted"
 
-    httpCode = 200
-
-    return jsonify(retResp), httpCode
-
-
-def createOpenWhiskUser(uname):
-    username = None
-    password = None
-    cmd = "wskadmin user create " + uname
-
-    success, result = execCommand(cmd)
-
-    if success:
-        output = result.split(":")
-        username = output[0]
-        password = output[1]
-
-    return success, username, password
+    return jsonify(retResp), 200
 
 
-def deleteOpenWhiskUser(username):
-    cmd = "wskadmin user delete " + username
-    success, result = execCommand(cmd)
+def updateNamespace(name, num):
+    success = False
 
-    return success, result
+    updateResult = mongo.db.namespace.update_one(
+        {"name": name},
+        {"$inc": {"serviceCount": num}},
+        upsert=True)
+
+    if updateResult.upserted_id is not None:
+        isCreated, authUser, authPass = wskutil.createUser(name)
+
+        if isCreated:
+            mongo.db.namespace.update_one(
+                    {"name": name},
+                    {"$set": {"authUser": authUser, "authPass": authPass}})
+            success = True
+***REMOVED***
+        namespace = mongo.db.namespace.find_one(
+                {"name": name},
+                {"_id": False})
+
+        if namespace.get("serviceCount", 0) == 0:
+            mongo.db.namespace.delete_one({"name": name})
+            isDeleted, result = wskutil.deleteUser(name)
+
+            if isDeleted:
+                success = True
+    ***REMOVED***
+            success = True
+
+    return success
 
 
-# It is meant to be called only with ONE command!
-def execCommand(cmd):
-    cmd = cmd + "; echo $?"
-    ssh_stdin, ssh_stdout, ssh_stderr = sshclient.exec_command(cmd)
-    output = ssh_stdout.read().decode()
+def insertService(data):
+***REMOVED***
+        mongo.db.service.insert_one(
+                {
+                    "serviceId": str(uuid.uuid1()),
+                    "serviceName": data.get("serviceName", ""),
+                    "namespace": data.get("namespace", ""),
+                    "description": data.get("description", ""),
+                    "basePath": data.get("basePath", ""),
+                    "path": data.get("path", ""),
+                    "icon": data.get("icon", ""),
+                    "userId": data.get("userId", ""),
+                    #  "example": data.get("example", ""),
+                    #  "appLink": data.get("appLink", ""),
+                    #  "videoLink": data.get("videoLink", ""),
+                    #  "swaggerApi": data.get("swaggerApi", "")
+    ***REMOVED***)
+    except DuplicateKeyError:
+        return False
 
-    # Get output of each command separated by '\n'
-    output = output.split("\n")
-    success = not bool(int(output[1]))
-
-    return success, output[0]
+    return True
