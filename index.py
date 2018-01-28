@@ -17,7 +17,7 @@ wskutil.initSshSession(
         appconfig.SSH_PRIV)
 
 
-@app.route(appconfig.API_PREFIX + "/", methods=['POST'])
+@app.route(appconfig.API_PREFIX, methods=['POST'])
 def createService():
     retResp = {"success": False, "message": ""}
 
@@ -28,21 +28,26 @@ def createService():
     incomData = request.get_json()
     username = incomData.get("username", "")
     serviceName = incomData.get("serviceName", "")
-    incomData["namespace"] = username
-
-    if not insertService(incomData):
-        retResp["message"] = "Service " + serviceName + " already exists"
-        return jsonify(retResp), 400
 
     if not updateNamespace(username, 1):
         retResp["message"] = "Couldn't update/inset namespace " + username
         return jsonify(retResp), 500
 
     auth = mongo.db.namespace.find_one({"name": username}, {"_id": False})
-    f = open(appconfig.TEMPLATE, "r")
-    code = f.read()
     authUser = auth.get("authUser", "")
     authPass = auth.get("authPass", "")
+    basePath = incomData.get("basePath", "")
+    incomData["namespace"] = authUser
+
+    if not insertService(incomData):
+        retResp["message"] = "Service with basePath '" + \
+                basePath + "' OR with serviceName '" + \
+                serviceName + "' already exists"
+        updateNamespace(username, -1)
+        return jsonify(retResp), 400
+
+    f = open(appconfig.TEMPLATE, "r")
+    code = f.read()
 
 ***REMOVED***
         wskutil.createAction(authUser, authPass, serviceName, "nodejs:6", code)
@@ -50,8 +55,8 @@ def createService():
                 authUser,
                 authPass,
                 serviceName,
-                incomData.get("basePath", "/base"),
-                incomData.get("path", "/path"),
+                basePath,
+                incomData.get("path", ""),
                 "GET")
     except (requests.ConnectionError, requests.ConnectTimeout) as e:
         retResp["message"] = e.__str__()
@@ -66,7 +71,22 @@ def createService():
     return jsonify(retResp), 201
 
 
-@app.route(appconfig.API_PREFIX + "/<serviceId>/", methods=['DELETE'])
+@app.route(appconfig.API_PREFIX + "/")
+def getServices():
+    services = None
+    args = request.args
+
+    if "userId" in args:
+        services = mongo.db.service.find(
+                {"userId": args.get("userId", "")},
+                {"_id": False})
+***REMOVED***
+        services = mongo.db.service.find(projection={"_id": False})
+
+    return jsonify(list(services)), 200
+
+
+@app.route(appconfig.API_PREFIX + "/<serviceId>", methods=['DELETE'])
 def deleteService(serviceId):
     retResp = {"success": False, "message": ""}
 
@@ -76,10 +96,12 @@ def deleteService(serviceId):
         retResp["message"] = "Couldn't find serviceId " + serviceId
         return jsonify(retResp), 404
 
-    namespace = service.get("namespace", "")
-    auth = mongo.db.namespace.find_one({"name": namespace}, {"_id": False})
+    auth = mongo.db.namespace.find_one(
+            {"authUser": service.get("namespace", "")},
+            {"_id": False})
     authUser = auth.get("authUser", "")
     authPass = auth.get("authPass", "")
+    username = auth.get("name", "")
     serviceName = service.get("serviceName", "")
 
 ***REMOVED***
@@ -92,8 +114,8 @@ def deleteService(serviceId):
         retResp["message"] = e.args[1]
         return jsonify(retResp), e.args[0]
 
-    if not updateNamespace(namespace, -1):
-        retResp["message"] = "Couldn't update/delete namespace " + namespace
+    if not updateNamespace(username, -1):
+        retResp["message"] = "Couldn't update/delete namespace " + username
         return jsonify(retResp), 500
 
     retResp["success"] = True
