@@ -40,20 +40,19 @@ def createService():
 
     auth = mongo.db.namespace.find_one({"name": username}, {"_id": False})
     f = open(appconfig.TEMPLATE, "r")
-    #  code = repr(f.read())
     code = f.read()
+    authUser = auth.get("authUser", "")
+    authPass = auth.get("authPass", "")
 
 ***REMOVED***
-        wskutil.createAction(
-                auth.get("authUser", ""),
-                auth.get("authPass", ""),
-                serviceName, "nodejs:6", code)
+        wskutil.createAction(authUser, authPass, serviceName, "nodejs:6", code)
         wskutil.createApi(
-                auth.get("authUser", ""),
-                auth.get("authPass", ""),
+                authUser,
+                authPass,
                 serviceName,
                 incomData.get("basePath", "/base"),
-                incomData.get("path", "/path"), "GET")
+                incomData.get("path", "/path"),
+                "GET")
     except (requests.ConnectionError, requests.ConnectTimeout) as e:
         retResp["message"] = e.__str__()
         return jsonify(retResp), 500
@@ -75,20 +74,47 @@ def deleteService(serviceId):
 
     if service is None:
         retResp["message"] = "Couldn't find serviceId " + serviceId
-        return jsonify(retResp), 400
+        return jsonify(retResp), 404
 
     namespace = service.get("namespace", "")
+    auth = mongo.db.namespace.find_one({"name": namespace}, {"_id": False})
+    authUser = auth.get("authUser", "")
+    authPass = auth.get("authPass", "")
+    serviceName = service.get("serviceName", "")
+
+***REMOVED***
+        wskutil.deleteApi(authUser, authPass, service.get("basePath", ""))
+        wskutil.deleteAction(authUser, authPass, serviceName)
+    except (requests.ConnectionError, requests.ConnectTimeout) as e:
+        retResp["message"] = e.__str__()
+        return jsonify(retResp), 500
+    except Exception as e:
+        retResp["message"] = e.args[1]
+        return jsonify(retResp), e.args[0]
 
     if not updateNamespace(namespace, -1):
         retResp["message"] = "Couldn't update/delete namespace " + namespace
         return jsonify(retResp), 500
 
     retResp["success"] = True
-    retResp["message"] = "Service " + \
-        service.get("serviceName", "") + \
-        " is successfully deleted"
+    retResp["message"] = "Service " + serviceName + " is successfully deleted"
 
     return jsonify(retResp), 200
+
+
+@app.route(appconfig.API_PREFIX + "/<serviceId>/")
+def getService(serviceId):
+    retResp = {"success": False, "message": ""}
+
+    service = mongo.db.service.find_one(
+            {"serviceId": serviceId},
+            {"_id": False})
+
+    if service is None:
+        retResp["message"] = "Couldn't find serviceId " + serviceId
+        return jsonify(retResp), 404
+
+    return jsonify(service), 200
 
 
 def updateNamespace(name, num):

@@ -1,6 +1,6 @@
+from urllib.parse import quote
 import paramiko
 ***REMOVED***
-import json
 
 sshclient = None
 ***REMOVED***
@@ -93,6 +93,29 @@ def createAction(authUser, authPass, actionName, kind, code):
     ***REMOVED*** Exception(httpCode, error)
 
 
+def deleteAction(authUser, authPass, actionName):
+***REMOVED***
+***REMOVED***
+                HOST_NS + "/actions/" + actionName,
+                auth=(authUser, authPass))
+
+        httpCode = resp.status_code
+***REMOVED***
+
+***REMOVED***
+        print("deleteAction: couldn't connect to external service")
+***REMOVED***
+***REMOVED***
+        print("deleteAction: connection to external service timeout")
+***REMOVED***
+***REMOVED***
+        if httpCode != 200:
+***REMOVED***
+***REMOVED***
+            print("deleteAction: " + error)
+    ***REMOVED*** Exception(httpCode, error)
+
+
 # All capitalized characters for <method>
 def createApi(authUser, authPass, actionName, basePath, path, method):
     backendUrl = HOST + "/web/_/default/" + actionName + ".http"
@@ -135,4 +158,30 @@ def createApi(authUser, authPass, actionName, basePath, path, method):
 ***REMOVED***
 ***REMOVED***
             print("createApi: " + error)
+    ***REMOVED*** Exception(httpCode, error)
+
+
+def deleteApi(authUser, authPass, basePath):
+    middleUrl = ("/web/whisk.system/apimgmt/deleteApi.http?"
+                 "accesstoken=DUMMY+TOKEN&basepath=")
+    tailUrl = quote(basePath) + "&spaceguid=" + authUser
+***REMOVED***
+***REMOVED***
+                HOST + middleUrl + tailUrl,
+                auth=(authUser, authPass))
+
+        httpCode = resp.status_code
+***REMOVED***
+
+***REMOVED***
+        print("deleteApi: couldn't connect to external service")
+***REMOVED***
+***REMOVED***
+        print("deleteApi: connection to external service timeout")
+***REMOVED***
+***REMOVED***
+        if httpCode != 200:
+***REMOVED***
+***REMOVED***
+            print("deleteApi: " + error)
     ***REMOVED*** Exception(httpCode, error)
