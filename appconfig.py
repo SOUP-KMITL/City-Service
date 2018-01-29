@@ -14,7 +14,7 @@ class DefaultConfig(object):
 
 API_VER = 1
 EXT_API_PORT = 443
-INT_API_PORT = 8080
+INT_API_PORT = 80
 
 SSH_HOST = "cityservice.smartcity.kmitl.io"
 SSH_USER = "ubuntu"
