@@ -56,8 +56,7 @@ def deleteUser(username):
     return success, result
 
 
-def createAction(authUser, authPass, actionName, kind, code):
-    httpCode = 400
+def updateAction(authUser, authPass, actionName, kind, code, overwrite):
     data = {
             "namespace": "_",
             "name": actionName,
@@ -69,27 +68,30 @@ def createAction(authUser, authPass, actionName, kind, code):
                 {"key": "raw-http", "value": False},
                 {"key": "final", "value": True}]
             }
+    query = {"overwrite": overwrite}
+
     try:
         resp = requests.put(
                 HOST_NS + "/actions/" + actionName,
                 json=data,
                 auth=(authUser, authPass),
+                params=query,
                 headers=HEADERS)
 
         httpCode = resp.status_code
         result = resp.json()
 
     except requests.ConnectionError:
-        print("createAction: couldn't connect to external service")
+        print("updateAction: couldn't connect to external service")
         raise
     except requests.ConnectTimeout:
-        print("createAction: connection to external service timeout")
+        print("updateAction: connection to external service timeout")
         raise
     else:
         if httpCode != 200:
             error = result.get("error", "Couldn't find error") + \
                     " => " + str(result.get("code", 0))
-            print("createAction: " + error)
+            print("updateAction: " + error)
             raise Exception(httpCode, error)
 
 
