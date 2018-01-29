@@ -1,10 +1,12 @@
-__pycache__/
-db/
 .*
 *~
 Pipfile
 Pipfile.lock
+__pycache__/
+db/
+docker-compose.yml
 deploy.sh
 verbose.out
 rsync.exc
 !.dockerignore
+!.gitignore
