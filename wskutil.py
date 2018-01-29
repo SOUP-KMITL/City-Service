@@ -56,8 +56,7 @@ def deleteUser(username):
     return success, result
 
 
-def createAction(authUser, authPass, actionName, kind, code):
-    httpCode = 400
+def updateAction(authUser, authPass, actionName, kind, code, overwrite):
 ***REMOVED***
 ***REMOVED***
             "name": actionName,
@@ -70,26 +69,29 @@ def createAction(authUser, authPass, actionName, kind, code):
                 {"key": "final", "value": True}]
 ***REMOVED***
 ***REMOVED***
+
+***REMOVED***
 ***REMOVED***
                 HOST_NS + "/actions/" + actionName,
 ***REMOVED***
                 auth=(authUser, authPass),
+***REMOVED***
 ***REMOVED***
 
         httpCode = resp.status_code
 ***REMOVED***
 
 ***REMOVED***
-        print("createAction: couldn't connect to external service")
+        print("updateAction: couldn't connect to external service")
 ***REMOVED***
 ***REMOVED***
-        print("createAction: connection to external service timeout")
+        print("updateAction: connection to external service timeout")
 ***REMOVED***
 ***REMOVED***
         if httpCode != 200:
 ***REMOVED***
 ***REMOVED***
-            print("createAction: " + error)
+            print("updateAction: " + error)
     ***REMOVED*** Exception(httpCode, error)
 
 

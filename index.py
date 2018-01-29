@@ -3,6 +3,7 @@ from flask_pymongo import PyMongo
 from pymongo.errors import DuplicateKeyError
 ***REMOVED***
 import uuid
+import base64
 
 # Custom modules and packages
 import appconfig
@@ -65,7 +66,13 @@ def createService():
     code = f.read()
 
 ***REMOVED***
-        wskutil.createAction(authUser, authPass, serviceName, "nodejs:6", code)
+        wskutil.updateAction(
+                authUser,
+                authPass,
+                serviceName,
+                "nodejs:6",
+                code,
+                False)
         wskutil.createApi(
                 authUser,
                 authPass,
@@ -154,9 +161,21 @@ def patchService(serviceId):
         retResp["message"] = "No required fields found"
         return jsonify(retResp), 400
 
-    if not updateService(serviceId, incomData):
+    service = mongo.db.service.find_one(
+            {"serviceId": serviceId},
+            {"_id": False})
+
+    if service is None:
         retResp["message"] = "Couldn't find serviceId " + serviceId
         return jsonify(retResp), 404
+
+    msg, code = updateActionAndApi(service, incomData)
+
+    if code != 0:
+        retResp["message"] = msg
+        return jsonify(retResp), code
+
+    updateService(serviceId, incomData)
 
     retResp["success"] = True
     retResp["message"] = "serviceId " + serviceId + " is successfully updated"
@@ -227,23 +246,64 @@ def insertService(data):
     return True
 
 
-def isKeyValid(key):
-    return {
-            "description": True,
-            "icon": True,
-            "example": True,
-            "appLink": True,
-            "videoLink": True,
-            "swagger": True
-***REMOVED***.get(key, False)
-
-
 def validateParam(d):
+    validKeys = [
+            "description", "basePath", "path",
+            "icon", "example", "appLink",
+            "videoLink", "swagger",
+            ##################################
+            "code", "kind", "method",
+            ]
     invalidKeys = []
 
     for key, value in d.items():
-        if not isKeyValid(key):
+        if key not in validKeys or not value:
             invalidKeys.append(key)
 
     for key in invalidKeys:
         d.pop(key)
+
+    if "path" not in d and "basePath" in d:
+        d.pop("basePath")
+    elif "path" in d:
+        d["basePath"] = d.get("basePath", "/")
+
+
+def updateActionAndApi(service, data):
+    auth = mongo.db.namespace.find_one(
+            {"authUser": service.get("namespace")},
+            {"_id": False})
+    authUser = auth.get("authUser", "")
+    authPass = auth.get("authPass", "")
+    serviceName = service.get("serviceName")
+
+***REMOVED***
+        if "code" in data and "kind" in data:
+            code = base64.b64decode(data.get("code")).decode()
+            print(code)
+            wskutil.updateAction(
+                    authUser,
+                    authPass,
+                    serviceName,
+                    data.get("kind"),
+                    code,
+                    True)
+
+        if "method" in data and "path" in data:
+            wskutil.deleteApi(authUser, authPass, service.get("basePath"))
+            wskutil.createApi(
+                    authUser,
+                    authPass,
+                    serviceName,
+                    data.get("basePath"),
+                    data.get("path"),
+                    data.get("method"))
+    except (requests.ConnectionError, requests.ConnectTimeout) as e:
+        return e.__str__(), 500
+    except Exception as e:
+        return e.args[1], e.args[0]
+
+    data.pop("code", None)
+    data.pop("kind", None)
+
+    return None, 0
