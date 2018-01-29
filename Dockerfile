@@ -1,5 +1,6 @@
-FROM python:3.6.3-alpine3.6
+FROM python:3.6.4-alpine3.7
 ADD requirements.txt /tmp/requirements.txt
+RUN apk --update add build-base libffi-dev openssl-dev
 RUN pip install -r /tmp/requirements.txt
 ADD . /app
 WORKDIR /app
