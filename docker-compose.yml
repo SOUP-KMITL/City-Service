@@ -14,8 +14,6 @@ services:
         environment:
             - FLASK_ENV=DEV
             - DB_HOST=172.16.0.6
-            # - CFLAGS=-Qunused-arguments
-            # - CPPFLAGS=-Qunused-arguments
         build: .
         networks:
             - default
