@@ -17,13 +17,28 @@ wskutil.initSshSession(
         appconfig.SSH_PRIV)
 
 
-@app.route(appconfig.API_PREFIX, methods=['POST'])
+@app.route(appconfig.API_PREFIX + "/")
+def getServices():
+    services = None
+    args = request.args
+
+    if "userId" in args:
+        services = mongo.db.service.find(
+                {"userId": args.get("userId", "")},
+                {"_id": False})
+***REMOVED***
+        services = mongo.db.service.find(projection={"_id": False})
+
+    return jsonify(list(services)), 200
+
+
+@app.route(appconfig.API_PREFIX + "/", methods=['POST'])
 def createService():
     retResp = {"success": False, "message": ""}
 
     if not request.is_json:
         retResp["message"] = "Invalid request body type, expected JSON"
-        return jsonify(retResp), 500
+        return jsonify(retResp), 400
 
     incomData = request.get_json()
     username = incomData.get("username", "")
@@ -71,22 +86,22 @@ def createService():
     return jsonify(retResp), 201
 
 
-@app.route(appconfig.API_PREFIX + "/")
-def getServices():
-    services = None
-    args = request.args
+@app.route(appconfig.API_PREFIX + "/<serviceId>/")
+def getService(serviceId):
+    retResp = {"success": False, "message": ""}
 
-    if "userId" in args:
-        services = mongo.db.service.find(
-                {"userId": args.get("userId", "")},
-                {"_id": False})
-***REMOVED***
-        services = mongo.db.service.find(projection={"_id": False})
+    service = mongo.db.service.find_one(
+            {"serviceId": serviceId},
+            {"_id": False})
 
-    return jsonify(list(services)), 200
+    if service is None:
+        retResp["message"] = "Couldn't find serviceId " + serviceId
+        return jsonify(retResp), 404
+
+    return jsonify(service), 200
 
 
-@app.route(appconfig.API_PREFIX + "/<serviceId>", methods=['DELETE'])
+@app.route(appconfig.API_PREFIX + "/<serviceId>/", methods=['DELETE'])
 def deleteService(serviceId):
     retResp = {"success": False, "message": ""}
 
@@ -124,19 +139,40 @@ def deleteService(serviceId):
     return jsonify(retResp), 200
 
 
-@app.route(appconfig.API_PREFIX + "/<serviceId>/")
-def getService(serviceId):
+@app.route(appconfig.API_PREFIX + "/<serviceId>/", methods=["PATCH"])
+def patchService(serviceId):
     retResp = {"success": False, "message": ""}
 
-    service = mongo.db.service.find_one(
-            {"serviceId": serviceId},
-            {"_id": False})
+    if not request.is_json:
+        retResp["message"] = "Invalid request body type, expected JSON"
+        return jsonify(retResp), 400
 
-    if service is None:
+    incomData = request.get_json()
+    validateParam(incomData)
+
+    if len(incomData) == 0:
+        retResp["message"] = "No required fields found"
+        return jsonify(retResp), 400
+
+    if not updateService(serviceId, incomData):
         retResp["message"] = "Couldn't find serviceId " + serviceId
         return jsonify(retResp), 404
 
-    return jsonify(service), 200
+    retResp["success"] = True
+    retResp["message"] = "serviceId " + serviceId + " is successfully updated"
+
+    return jsonify(retResp), 200
+
+
+def updateService(serviceId, data):
+    result = mongo.db.service.update_one(
+            {"serviceId": serviceId},
+            {"$set": data})
+
+    if result.matched_count == 0:
+        return False
+***REMOVED***
+        return True
 
 
 def updateNamespace(name, num):
@@ -183,13 +219,31 @@ def insertService(data):
                     "basePath": data.get("basePath", ""),
                     "path": data.get("path", ""),
                     "icon": data.get("icon", ""),
-                    "userId": data.get("userId", ""),
-                    #  "example": data.get("example", ""),
-                    #  "appLink": data.get("appLink", ""),
-                    #  "videoLink": data.get("videoLink", ""),
-                    #  "swaggerApi": data.get("swaggerApi", "")
+                    "userId": data.get("userId", "")
     ***REMOVED***)
     except DuplicateKeyError:
         return False
 
     return True
+
+
+def isKeyValid(key):
+    return {
+            "description": True,
+            "icon": True,
+            "example": True,
+            "appLink": True,
+            "videoLink": True,
+            "swagger": True
+***REMOVED***.get(key, False)
+
+
+def validateParam(d):
+    invalidKeys = []
+
+    for key, value in d.items():
+        if not isKeyValid(key):
+            invalidKeys.append(key)
+
+    for key in invalidKeys:
+        d.pop(key)
