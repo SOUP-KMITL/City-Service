@@ -13,7 +13,6 @@ services:
         image: worker-01:5000/city-service
         environment:
             - FLASK_ENV=DEV
-            - DB_HOST=172.16.0.6
         build: .
         networks:
             - default
