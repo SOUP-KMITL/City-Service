@@ -4,6 +4,7 @@ from pymongo.errors import DuplicateKeyError
 import requests
 import uuid
 import base64
+import binascii
 
 # Custom modules and packages
 import appconfig
@@ -36,30 +37,40 @@ def getServices():
 @app.route(appconfig.API_PREFIX + "/", methods=['POST'])
 def createService():
     retResp = {"success": False, "message": ""}
+    validKeys = [
+            "username", "serviceName", "userId",
+            "path", "basePath", "description", "icon"
+            ]
+    requiredKeys = validKeys[:-3]
 
     if not request.is_json:
         retResp["message"] = "Invalid request body type, expected JSON"
         return jsonify(retResp), 400
 
     incomData = request.get_json()
-    username = incomData.get("username", "")
-    serviceName = incomData.get("serviceName", "")
 
-    if not updateNamespace(username, 1):
-        retResp["message"] = "Couldn't update/inset namespace " + username
+    if not all(key in incomData for key in requiredKeys):
+        retResp["message"] = "Required fileds are missing: " + \
+                ", ".join(requiredKeys)
+        return jsonify(retResp), 400
+
+    validateParams(incomData, validKeys)
+    basePath = incomData.get("basePath", "/")
+    username = incomData.get("username")
+    serviceName = incomData.get("serviceName")
+    success, authUser, authPass = updateNamespace("name", username, 1)
+
+    if not success:
+        retResp["message"] = "Couldn't update/insert namespace for " + username
         return jsonify(retResp), 500
-
-    auth = mongo.db.namespace.find_one({"name": username}, {"_id": False})
-    authUser = auth.get("authUser", "")
-    authPass = auth.get("authPass", "")
-    basePath = incomData.get("basePath", "")
-    incomData["namespace"] = authUser
+    else:
+        incomData["namespace"] = authUser
 
     if not insertService(incomData):
         retResp["message"] = "Service with basePath '" + \
                 basePath + "' OR with serviceName '" + \
                 serviceName + "' already exists"
-        updateNamespace(username, -1)
+        updateNamespace("name", username, -1)
         return jsonify(retResp), 400
 
     f = open(appconfig.TEMPLATE, "r")
@@ -78,7 +89,7 @@ def createService():
                 authPass,
                 serviceName,
                 basePath,
-                incomData.get("path", ""),
+                incomData.get("path"),
                 "GET")
     except (requests.ConnectionError, requests.ConnectTimeout) as e:
         retResp["message"] = e.__str__()
@@ -118,13 +129,15 @@ def deleteService(serviceId):
         retResp["message"] = "Couldn't find serviceId " + serviceId
         return jsonify(retResp), 404
 
-    auth = mongo.db.namespace.find_one(
-            {"authUser": service.get("namespace", "")},
-            {"_id": False})
-    authUser = auth.get("authUser", "")
-    authPass = auth.get("authPass", "")
-    username = auth.get("name", "")
-    serviceName = service.get("serviceName", "")
+    success, authUser, authPass = updateNamespace(
+            "authUser",
+            service.get("namespace"), -1)
+
+    if not success:
+        retResp["message"] = "Couldn't update/delete namespace " + authUser
+        return jsonify(retResp), 500
+
+    serviceName = service.get("serviceName")
 
     try:
         wskutil.deleteApi(authUser, authPass, service.get("basePath", ""))
@@ -136,10 +149,6 @@ def deleteService(serviceId):
         retResp["message"] = e.args[1]
         return jsonify(retResp), e.args[0]
 
-    if not updateNamespace(username, -1):
-        retResp["message"] = "Couldn't update/delete namespace " + username
-        return jsonify(retResp), 500
-
     retResp["success"] = True
     retResp["message"] = "Service " + serviceName + " is successfully deleted"
 
@@ -149,33 +158,63 @@ def deleteService(serviceId):
 @app.route(appconfig.API_PREFIX + "/<serviceId>/", methods=["PATCH"])
 def patchService(serviceId):
     retResp = {"success": False, "message": ""}
+    validKeys = [
+            "description", "basePath", "path",
+            "icon", "example", "appLink",
+            "videoLink", "swagger",
+            ##################################
+            "code", "kind", "method",
+            ]
 
     if not request.is_json:
         retResp["message"] = "Invalid request body type, expected JSON"
         return jsonify(retResp), 400
 
     incomData = request.get_json()
-    validateParam(incomData)
+    validateParams(incomData, validKeys)
+    chcode, chpath = validateCodeAndPath(incomData)
 
     if len(incomData) == 0:
         retResp["message"] = "No required fields found"
         return jsonify(retResp), 400
 
-    service = mongo.db.service.find_one(
-            {"serviceId": serviceId},
-            {"_id": False})
+    service, code, kind, method = updateService(serviceId, incomData)
 
     if service is None:
         retResp["message"] = "Couldn't find serviceId " + serviceId
         return jsonify(retResp), 404
 
-    msg, code = updateActionAndApi(service, incomData)
+    if chcode or chpath:
+        auth = mongo.db.namespace.find_one(
+                {"authUser": service.get("namespace")},
+                {"_id": False})
+        authUser = auth.get("authUser", "")
+        authPass = auth.get("authPass", "")
+        serviceName = service.get("serviceName")
 
-    if code != 0:
-        retResp["message"] = msg
-        return jsonify(retResp), code
-
-    updateService(serviceId, incomData)
+        try:
+            if chcode:
+                code = base64.b64decode(code).decode()
+                wskutil.updateAction(
+                        authUser, authPass, serviceName, kind, code, True)
+            if chpath:
+                wskutil.deleteApi(authUser, authPass, service.get("basePath"))
+                wskutil.createApi(
+                        authUser,
+                        authPass,
+                        serviceName,
+                        incomData.get("basePath"),
+                        incomData.get("path"),
+                        method)
+        except (requests.ConnectionError, requests.ConnectTimeout) as e:
+            retResp["message"] = e.__str__()
+            return jsonify(retResp), 500
+        except binascii.Error:
+            retResp["message"] = "Invalid base64 encoded message"
+            return jsonify(retResp), 400
+        except Exception as e:
+            retResp["message"] = e.args[1]
+            return jsonify(retResp), e.args[0]
 
     retResp["success"] = True
     retResp["message"] = "serviceId " + serviceId + " is successfully updated"
@@ -184,47 +223,55 @@ def patchService(serviceId):
 
 
 def updateService(serviceId, data):
-    result = mongo.db.service.update_one(
+    code = data.pop("code", None)
+    kind = data.pop("kind", None)
+    meth = data.pop("method", None)
+
+    service = mongo.db.service.find_one_and_update(
             {"serviceId": serviceId},
-            {"$set": data})
+            {"$set": data},
+            projection={"_id": False})
 
-    if result.matched_count == 0:
-        return False
-    else:
-        return True
+    return service, code, kind, meth
 
 
-def updateNamespace(name, num):
+# If you want to create a namespace, strictly use "name" as the key.
+# In case you want to minus the serviceCount, use either "name" or "authUser."
+# Besides the above constraints, do not use any other keys.
+def updateNamespace(key, val, num):
     success = False
+    authUser = None
+    authPass = None
 
-    updateResult = mongo.db.namespace.update_one(
-        {"name": name},
+    namespace = mongo.db.namespace.find_one_and_update(
+        {key: val},
         {"$inc": {"serviceCount": num}},
+        projection={"_id": False},
         upsert=True)
 
-    if updateResult.upserted_id is not None:
-        isCreated, authUser, authPass = wskutil.createUser(name)
+    if namespace is None:
+        isCreated, authUser, authPass = wskutil.createUser(val)
 
         if isCreated:
             mongo.db.namespace.update_one(
-                    {"name": name},
+                    {key: val},
                     {"$set": {"authUser": authUser, "authPass": authPass}})
             success = True
     else:
-        namespace = mongo.db.namespace.find_one(
-                {"name": name},
-                {"_id": False})
+        authUser = namespace.get("authUser", "")
+        authPass = namespace.get("authPass", "")
+        serviceCount = namespace.get("serviceCount", 1)
 
-        if namespace.get("serviceCount", 0) == 0:
-            mongo.db.namespace.delete_one({"name": name})
-            isDeleted, result = wskutil.deleteUser(name)
+        if serviceCount == -num:
+            mongo.db.namespace.delete_one({key: val})
+            isDeleted, result = wskutil.deleteUser(namespace.get("name"))
 
             if isDeleted:
                 success = True
         else:
             success = True
 
-    return success
+    return success, authUser, authPass
 
 
 def insertService(data):
@@ -246,64 +293,33 @@ def insertService(data):
     return True
 
 
-def validateParam(d):
-    validKeys = [
-            "description", "basePath", "path",
-            "icon", "example", "appLink",
-            "videoLink", "swagger",
-            ##################################
-            "code", "kind", "method",
-            ]
+def validateParams(d, vkeys):
     invalidKeys = []
 
     for key, value in d.items():
-        if key not in validKeys or not value:
+        if key not in vkeys or not value:
             invalidKeys.append(key)
 
     for key in invalidKeys:
         d.pop(key)
 
-    if "path" not in d and "basePath" in d:
-        d.pop("basePath")
-    elif "path" in d:
+
+def validateCodeAndPath(d):
+    chcode = False
+    chpath = False
+
+    if not ("code" in d and "kind" in d):
+        d.pop("code", None)
+        d.pop("kind", None)
+    else:
+        chcode = True
+
+    if not ("path" in d and "method" in d):
+        d.pop("basePath", None)
+        d.pop("path", None)
+        d.pop("method", None)
+    else:
         d["basePath"] = d.get("basePath", "/")
+        chpath = True
 
-
-def updateActionAndApi(service, data):
-    auth = mongo.db.namespace.find_one(
-            {"authUser": service.get("namespace")},
-            {"_id": False})
-    authUser = auth.get("authUser", "")
-    authPass = auth.get("authPass", "")
-    serviceName = service.get("serviceName")
-
-    try:
-        if "code" in data and "kind" in data:
-            code = base64.b64decode(data.get("code")).decode()
-            print(code)
-            wskutil.updateAction(
-                    authUser,
-                    authPass,
-                    serviceName,
-                    data.get("kind"),
-                    code,
-                    True)
-
-        if "method" in data and "path" in data:
-            wskutil.deleteApi(authUser, authPass, service.get("basePath"))
-            wskutil.createApi(
-                    authUser,
-                    authPass,
-                    serviceName,
-                    data.get("basePath"),
-                    data.get("path"),
-                    data.get("method"))
-    except (requests.ConnectionError, requests.ConnectTimeout) as e:
-        return e.__str__(), 500
-    except Exception as e:
-        return e.args[1], e.args[0]
-
-    data.pop("code", None)
-    data.pop("kind", None)
-
-    return None, 0
+    return chcode, chpath
