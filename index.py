@@ -153,7 +153,7 @@ def patchService(serviceId):
         retResp["message"] = "No required fields found"
         return jsonify(retResp), 400
 
-    service = updateService(serviceId, incomData)
+    code, kind, service = updateService(serviceId, incomData)
 
     if service is None:
         retResp["message"] = "Couldn't find serviceId " + serviceId
@@ -162,11 +162,10 @@ def patchService(serviceId):
     username, serviceName, action = getAction(service)
 
     if chcode:
-        code = base64.b64decode(incomData.get("code")).decode()
+        code = base64.b64decode(code).decode()
 
     ***REMOVED***
-            httpCode = wskutil.updateAction(
-                action, incomData.get("kind"), code, True)
+            httpCode = wskutil.updateAction(action, kind, code, True)
         except (requests.ConnectionError, requests.ConnectTimeout) as e:
             retResp["message"] = e.__str__()
             return jsonify(retResp), 500
@@ -186,12 +185,15 @@ def patchService(serviceId):
 
 
 def updateService(serviceId, data):
+    code = data.pop("code", None)
+    kind = data.pop("kind", None)
+
     service = mongo.db.service.find_one_and_update(
             {"serviceId": serviceId},
             {"$set": data},
             projection={"_id": False})
 
-    return service
+    return code, kind, service
 
 
 def insertService(data):
