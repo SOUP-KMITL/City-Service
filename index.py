@@ -159,10 +159,12 @@ def patchService(serviceId):
         retResp["message"] = "Couldn't find serviceId " + serviceId
         return jsonify(retResp), 404
 
+    username, serviceName, action = getAction(service)
+
     if chcode:
+        code = base64.b64decode(incomData.get("code")).decode()
+
         try:
-            username, serviceName, action = getAction(service)
-            code = base64.b64decode(incomData.get("code")).decode()
             httpCode = wskutil.updateAction(
                 action, incomData.get("kind"), code, True)
         except (requests.ConnectionError, requests.ConnectTimeout) as e:
