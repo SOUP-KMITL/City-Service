@@ -187,11 +187,17 @@ def patchService(serviceId):
 def updateService(serviceId, data):
     code = data.pop("code", None)
     kind = data.pop("kind", None)
+    service = None
 
-    service = mongo.db.service.find_one_and_update(
+    if data:
+        service = mongo.db.service.find_one_and_update(
             {"serviceId": serviceId},
             {"$set": data},
             projection={"_id": False})
+***REMOVED***
+        service = mongo.db.service.find_one(
+            {"serviceId": serviceId},
+            {"_id": False})
 
     return code, kind, service
 
