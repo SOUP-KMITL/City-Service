@@ -259,9 +259,9 @@ def insertService(data):
                     "serviceId": str(uuid.uuid1()),
                     "serviceName": data.get("serviceName", ""),
                     "description": data.get("description", ""),
-                    "thumbnail": data.get("icon", ""),
+                    "thumbnail": data.get("icon", None),
                     "owner": data.get("owner", ""),
-                    "endpoint": "",
+                    "endpoint": None,
                 })
     except DuplicateKeyError:
         return False
