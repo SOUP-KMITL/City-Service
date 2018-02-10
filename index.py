@@ -177,12 +177,11 @@ def patchService(serviceId):
 @app.route(appconfig.API_PREFIX + "/<serviceId>/activations", methods=["POST"])
 def invokeService(serviceId):
     retResp = {"success": False, "message": ""}
+    params = None
 
-    if not request.is_json:
-        retResp["message"] = "Invalid request body type, expected JSON"
-        return jsonify(retResp), 400
+    if request.is_json:
+        params = request.get_json()
 
-    params = request.get_json()
     service = mongo.db.service.find_one(
         {"serviceId": serviceId},
         {"_id": False})
