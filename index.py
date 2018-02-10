@@ -258,7 +258,7 @@ def insertService(data):
                     "serviceId": str(uuid.uuid1()),
                     "serviceName": data.get("serviceName", ""),
                     "description": data.get("description", ""),
-                    "thumbnail": data.get("icon", None),
+                    "thumbnail": data.get("thumbnail", None),
                     "owner": data.get("owner", ""),
                     "endpoint": None,
                 })
