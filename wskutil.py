@@ -1,80 +1,83 @@
-from urllib.parse import quote
-import paramiko
 import requests
+import os
 
-sshclient = None
+AUTH_USER = os.environ.get("AUTH_USER", "16dd0556-0a33-43c3-94ce-213b854909b0")
+AUTH_PASS = os.environ.get("AUTH_PASS", ("S6of8Ay3Q25MzDv6e3s5Qi6e7hItL317"
+                                         "M68BxkRMZrbV1ae3ij9n9YJFgVXhqj7p"))
 HOST = "https://cityservice.smartcity.kmitl.io/api/v1"
 HOST_NS = HOST + "/namespaces/_"
 HEADERS = {"Content-Type": "application/json"}
 
 
-def initSshSession(host, user, priv):
-    global sshclient
+def createPackage(pname):
+    data = {"namespace": "_", "name": pname}
+    query = {"overwrite": False}
 
-    key = paramiko.RSAKey.from_private_key_file(priv)
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(
-            hostname=host,
-            username=user,
-            pkey=key)
-    sshclient = client
+    try:
+        resp = requests.put(
+                HOST_NS + "/packages/" + pname,
+                json=data,
+                auth=(AUTH_USER, AUTH_PASS),
+                params=query,
+                headers=HEADERS)
 
+        httpCode = resp.status_code
+        result = resp.json()
 
-# It is meant to be called only with ONE command!
-def execCommand(cmd):
-    cmd = cmd + "; echo $?"
-    ssh_stdin, ssh_stdout, ssh_stderr = sshclient.exec_command(cmd)
-    output = ssh_stdout.read().decode()
-
-    # Get output of each command separated by '\n'
-    output = output.split("\n")
-    success = not bool(int(output[1]))
-
-    return success, output[0]
-
-
-def createUser(uname):
-    username = None
-    password = None
-    cmd = "wskadmin user create " + uname
-
-    success, result = execCommand(cmd)
-
-    if success:
-        output = result.split(":")
-        username = output[0]
-        password = output[1]
-
-    return success, username, password
+    except requests.ConnectionError:
+        print("createPackage: couldn't connect to external service")
+        raise
+    except requests.ConnectTimeout:
+        print("createPackage: connection to external service timeout")
+        raise
+    else:
+        if httpCode != 200:
+            error = result.get("error", "Couldn't find error") + \
+                    " => " + str(result.get("code", 0))
+            print("createPackage: " + error)
+    finally:
+        return httpCode
 
 
-def deleteUser(username):
-    cmd = "wskadmin user delete " + username
-    success, result = execCommand(cmd)
+def deletePackage(pname):
+    try:
+        resp = requests.delete(
+                HOST_NS + "/packages/" + pname,
+                auth=(AUTH_USER, AUTH_PASS))
 
-    return success, result
+        httpCode = resp.status_code
+        result = resp.json()
+
+    except requests.ConnectionError:
+        print("deletePackage: couldn't connect to external service")
+        raise
+    except requests.ConnectTimeout:
+        print("deletePackage: connection to external service timeout")
+        raise
+    else:
+        if httpCode != 200:
+            error = result.get("error", "Couldn't find error") + \
+                    " => " + str(result.get("code", 0))
+            print("deletePackage: " + error)
+    finally:
+        return httpCode
 
 
-def updateAction(authUser, authPass, actionName, kind, code, overwrite):
+def updateAction(action, kind, code, overwrite):
     data = {
             "namespace": "_",
-            "name": actionName,
+            "name": action,
             "exec": {
                 "kind": kind,
                 "code": code},
-            "annotations": [
-                {"key": "web-export", "value": True},
-                {"key": "raw-http", "value": False},
-                {"key": "final", "value": True}]
             }
     query = {"overwrite": overwrite}
 
     try:
         resp = requests.put(
-                HOST_NS + "/actions/" + actionName,
+                HOST_NS + "/actions/" + action,
                 json=data,
-                auth=(authUser, authPass),
+                auth=(AUTH_USER, AUTH_PASS),
                 params=query,
                 headers=HEADERS)
 
@@ -92,14 +95,15 @@ def updateAction(authUser, authPass, actionName, kind, code, overwrite):
             error = result.get("error", "Couldn't find error") + \
                     " => " + str(result.get("code", 0))
             print("updateAction: " + error)
-            raise Exception(httpCode, error)
+    finally:
+        return httpCode
 
 
-def deleteAction(authUser, authPass, actionName):
+def deleteAction(action):
     try:
         resp = requests.delete(
-                HOST_NS + "/actions/" + actionName,
-                auth=(authUser, authPass))
+                HOST_NS + "/actions/" + action,
+                auth=(AUTH_USER, AUTH_PASS))
 
         httpCode = resp.status_code
         result = resp.json()
@@ -115,75 +119,5 @@ def deleteAction(authUser, authPass, actionName):
             error = result.get("error", "Couldn't find error") + \
                     " => " + str(result.get("code", 0))
             print("deleteAction: " + error)
-            raise Exception(httpCode, error)
-
-
-# All capitalized characters for <method>
-def createApi(authUser, authPass, actionName, basePath, path, method):
-    backendUrl = HOST + "/web/_/default/" + actionName + ".http"
-    data = {
-            "apidoc": {
-                "namespace": "_",
-                "gatewayBasePath": basePath,
-                "gatewayPath": path,
-                "gatewayMethod": method,
-                "id": "API:_:" + basePath,
-                "action": {
-                    "name": actionName,
-                    "namespace": "_",
-                    "backendMethod": method,
-                    "backendUrl": backendUrl,
-                    "authkey": authUser + ":" + authPass
-                    }
-                }
-            }
-    try:
-        resp = requests.post(
-                HOST + ("/web/whisk.system/apimgmt/"
-                        "createApi.http?accesstoken=DUMMY+TOKEN&"
-                        "responsetype=json&spaceguid=") + authUser,
-                json=data,
-                auth=(authUser, authPass),
-                headers=HEADERS)
-
-        httpCode = resp.status_code
-        result = resp.json()
-
-    except requests.ConnectionError:
-        print("createApi: couldn't connect to external service")
-        raise
-    except requests.ConnectTimeout:
-        print("createApi: connection to external service timeout")
-        raise
-    else:
-        if httpCode != 200:
-            error = result.get("error", "Couldn't find error") + \
-                    " => " + str(result.get("code", 0))
-            print("createApi: " + error)
-            raise Exception(httpCode, error)
-
-
-def deleteApi(authUser, authPass, basePath):
-    middleUrl = ("/web/whisk.system/apimgmt/deleteApi.http?"
-                 "accesstoken=DUMMY+TOKEN&basepath=")
-    tailUrl = quote(basePath) + "&spaceguid=" + authUser
-    try:
-        resp = requests.delete(
-                HOST + middleUrl + tailUrl,
-                auth=(authUser, authPass))
-
-        httpCode = resp.status_code
-        result = resp.json()
-
-    except requests.ConnectionError:
-        print("deleteApi: couldn't connect to external service")
-        raise
-    except requests.ConnectTimeout:
-        print("deleteApi: connection to external service timeout")
-        raise
-    else:
-        if httpCode != 200:
-            error = result.get("error", "Couldn't find error") + \
-                    " => " + str(result.get("code", 0))
-            print("deleteApi: " + error)
-            raise Exception(httpCode, error)
+    finally:
+        return httpCode
