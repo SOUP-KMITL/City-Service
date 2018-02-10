@@ -30,10 +30,10 @@ def getServices():
     return jsonify(list(services)), 200
 
 
-@app.route(appconfig.API_PREFIX, methods=['POST'])
+@app.route(appconfig.API_PREFIX, methods=["POST"])
 def createService():
     retResp = {"success": False, "message": ""}
-    validKeys = ["username", "serviceName",
+    validKeys = ["owner", "serviceName",
                  "thumbnail", "description"]
     requiredKeys = validKeys[:-2]
 
@@ -58,24 +58,19 @@ def createService():
     f = open(appconfig.TEMPLATE, "r")
     code = f.read()
 
-    try:
-        httpCode = None
-
-        for i in range(2):
-            httpCode = wskutil.updateAction(action, "nodejs:6", code, False)
-            if httpCode == 200:
-                break
-            elif httpCode == 404 and i == 0:
+    for i in range(2):
+        try:
+            if i == 1:
                 wskutil.createPackage(username)
-
-    except (requests.ConnectionError, requests.ConnectTimeout) as e:
-        retResp["message"] = e.__str__()
-        return jsonify(retResp), 500
-    else:
-        if httpCode != 200:
-            retResp["message"] = ("Unknown external "
-                                  "service error: ") + str(httpCode)
+            wskutil.updateAction(action, "nodejs:6", code, False)
+        except (requests.ConnectionError, requests.ConnectTimeout) as e:
+            retResp["message"] = e.__str__()
             return jsonify(retResp), 500
+        except Exception as e:
+            httpCode = e.args[0]
+            if i == 1 or httpCode != 404:
+                retResp["message"] = e.args[1]
+                return jsonify(retResp), httpCode
 
     retResp["message"] = "service " + action + " is successfully created."
     retResp["success"] = True
@@ -98,7 +93,7 @@ def getService(serviceId):
     return jsonify(service), 200
 
 
-@app.route(appconfig.API_PREFIX + "/<serviceId>", methods=['DELETE'])
+@app.route(appconfig.API_PREFIX + "/<serviceId>", methods=["DELETE"])
 def deleteService(serviceId):
     retResp = {"success": False, "message": ""}
 
@@ -111,19 +106,16 @@ def deleteService(serviceId):
     username, serviceName, action = getAction(service)
 
     try:
-        httpCode = wskutil.deleteAction(action)
-
-        if httpCode == 200:
-            httpCode = wskutil.deletePackage(username)
-
+        wskutil.deleteAction(action)
+        wskutil.deletePackage(username)
     except (requests.ConnectionError, requests.ConnectTimeout) as e:
         retResp["message"] = e.__str__()
         return jsonify(retResp), 500
-    else:
-        if httpCode != 200 and httpCode != 409:
-            retResp["message"] = ("Unknown external "
-                                  "service error: ") + str(httpCode)
-            return jsonify(retResp), 500
+    except Exception as e:
+        httpCode = e.args[0]
+        if httpCode != 409:
+            retResp["message"] = e.args[1]
+            return jsonify(retResp), httpCode
 
     retResp["success"] = True
     retResp["message"] = "Service " + action + " is successfully deleted"
@@ -165,21 +157,79 @@ def patchService(serviceId):
         code = base64.b64decode(code).decode()
 
         try:
-            httpCode = wskutil.updateAction(action, kind, code, True)
+            wskutil.updateAction(action, kind, code, True)
         except (requests.ConnectionError, requests.ConnectTimeout) as e:
             retResp["message"] = e.__str__()
             return jsonify(retResp), 500
         except binascii.Error:
             retResp["message"] = "Invalid base64 encoded message"
             return jsonify(retResp), 400
-        else:
-            if httpCode != 200:
-                retResp["message"] = ("Unknown external "
-                                      "service error: ") + str(httpCode)
-                return jsonify(retResp), 500
+        except Exception as e:
+            retResp["message"] = e.args[1]
+            return jsonify(retResp), e.args[0]
 
     retResp["success"] = True
     retResp["message"] = "service " + action + " is successfully updated"
+
+    return jsonify(retResp), 200
+
+
+@app.route(appconfig.API_PREFIX + "/<serviceId>/activations", methods=["POST"])
+def invokeService(serviceId):
+    retResp = {"success": False, "message": ""}
+
+    if not request.is_json:
+        retResp["message"] = "Invalid request body type, expected JSON"
+        return jsonify(retResp), 400
+
+    params = request.get_json()
+    service = mongo.db.service.find_one(
+        {"serviceId": serviceId},
+        {"_id": False})
+
+    if service is None:
+        retResp["message"] = "Couldn't find serviceId " + serviceId
+        return jsonify(retResp), 404
+
+    username, serviceName, action = getAction(service)
+
+    try:
+        httpCode, data = wskutil.invokeAction(action, params)
+    except (requests.ConnectionError, requests.ConnectTimeout) as e:
+        retResp["message"] = e.__str__()
+        return jsonify(retResp), 500
+    except Exception as e:
+        retResp["message"] = e.args[1]
+        return jsonify(retResp), e.args[0]
+    else:
+        retResp = data
+
+    return jsonify(retResp), 200
+
+
+@app.route(appconfig.API_PREFIX + "/<serviceId>/data")
+def getDataService(serviceId):
+    retResp = {"success": False, "message": ""}
+    service = mongo.db.service.find_one(
+        {"serviceId": serviceId},
+        {"_id": False})
+
+    if service is None:
+        retResp["message"] = "Couldn't find serviceId " + serviceId
+        return jsonify(retResp), 404
+
+    username, serviceName, action = getAction(service)
+
+    try:
+        httpCode, data = wskutil.invokeAction(action, None)
+    except (requests.ConnectionError, requests.ConnectTimeout) as e:
+        retResp["message"] = e.__str__()
+        return jsonify(retResp), 500
+    except Exception as e:
+        retResp["message"] = e.args[1]
+        return jsonify(retResp), e.args[0]
+    else:
+        retResp = data
 
     return jsonify(retResp), 200
 
@@ -210,7 +260,7 @@ def insertService(data):
                     "serviceName": data.get("serviceName", ""),
                     "description": data.get("description", ""),
                     "thumbnail": data.get("icon", ""),
-                    "owner": data.get("username", ""),
+                    "owner": data.get("owner", ""),
                     "endpoint": "",
                 })
     except DuplicateKeyError:
@@ -235,7 +285,7 @@ def validateName(name):
 
 
 def getAction(d):
-    username = validateName(d.get("owner", d.get("username", "")))
+    username = validateName(d.get("owner", ""))
     serviceName = validateName(d.get("serviceName", ""))
     action = username + "/" + serviceName
 

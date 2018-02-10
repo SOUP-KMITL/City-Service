@@ -35,6 +35,7 @@ def createPackage(pname):
             error = result.get("error", "Couldn't find error") + \
                     " => " + str(result.get("code", 0))
             print("createPackage: " + error)
+            raise Exception(httpCode, error)
     finally:
         return httpCode
 
@@ -59,6 +60,7 @@ def deletePackage(pname):
             error = result.get("error", "Couldn't find error") + \
                     " => " + str(result.get("code", 0))
             print("deletePackage: " + error)
+            raise Exception(httpCode, error)
     finally:
         return httpCode
 
@@ -95,6 +97,7 @@ def updateAction(action, kind, code, overwrite):
             error = result.get("error", "Couldn't find error") + \
                     " => " + str(result.get("code", 0))
             print("updateAction: " + error)
+            raise Exception(httpCode, error)
     finally:
         return httpCode
 
@@ -119,5 +122,35 @@ def deleteAction(action):
             error = result.get("error", "Couldn't find error") + \
                     " => " + str(result.get("code", 0))
             print("deleteAction: " + error)
+            raise Exception(httpCode, error)
     finally:
         return httpCode
+
+
+def invokeAction(action, params):
+    query = {"blocking": True, "result": True}
+    try:
+        resp = requests.post(
+                HOST_NS + "/actions/" + action,
+                json=params,
+                auth=(AUTH_USER, AUTH_PASS),
+                params=query,
+                headers=HEADERS)
+
+        httpCode = resp.status_code
+        result = resp.json()
+
+    except requests.ConnectionError:
+        print("deleteAction: couldn't connect to external service")
+        raise
+    except requests.ConnectTimeout:
+        print("deleteAction: connection to external service timeout")
+        raise
+    else:
+        if httpCode != 200:
+            error = result.get("error", "Couldn't find error") + \
+                    " => " + str(result.get("code", 0))
+            print("deleteAction: " + error)
+            raise Exception(httpCode, error)
+    finally:
+        return httpCode, result
