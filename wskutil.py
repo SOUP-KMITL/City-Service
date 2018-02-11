@@ -141,16 +141,16 @@ def invokeAction(action, params):
         result = resp.json()
 
     except requests.ConnectionError:
-        print("deleteAction: couldn't connect to external service")
+        print("invokeAction: couldn't connect to external service")
         raise
     except requests.ConnectTimeout:
-        print("deleteAction: connection to external service timeout")
+        print("invokeAction: connection to external service timeout")
         raise
     else:
         if httpCode != 200:
             error = result.get("error", "Couldn't find error") + \
                     " => " + str(result.get("code", 0))
-            print("deleteAction: " + error)
+            print("invokeAction: " + error)
             raise Exception(httpCode, error)
     finally:
         return httpCode, result
