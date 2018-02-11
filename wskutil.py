@@ -141,16 +141,16 @@ def invokeAction(action, params):
 ***REMOVED***
 
 ***REMOVED***
-        print("deleteAction: couldn't connect to external service")
+        print("invokeAction: couldn't connect to external service")
 ***REMOVED***
 ***REMOVED***
-        print("deleteAction: connection to external service timeout")
+        print("invokeAction: connection to external service timeout")
 ***REMOVED***
 ***REMOVED***
         if httpCode != 200:
 ***REMOVED***
 ***REMOVED***
-            print("deleteAction: " + error)
+            print("invokeAction: " + error)
     ***REMOVED*** Exception(httpCode, error)
     finally:
         return httpCode, result
