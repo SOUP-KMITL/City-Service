@@ -22,8 +22,6 @@ def getServices():
     args = request.args
     size = args.get("size", 20, int)
     page = args.get("page", 0, int)
-    print(type(size))
-    print(type(page))
     key = "owner"
     query = {}
 
@@ -41,15 +39,26 @@ def getServices():
 @app.route(appconfig.API_PREFIX, methods=["POST"])
 def createService():
     retResp = {"success": False, "message": ""}
-    validKeys = ["owner", "serviceName",
-                 "thumbnail", "description"]
+    validKeys = ["owner", "serviceName", "thumbnail", "description"]
     requiredKeys = validKeys[:-2]
+    token = request.headers.get("Authorization", None)
+
+    if token is None:
+        retResp["message"] = "No access token found"
+        return jsonify(retResp), 401
+
+    user = getUserByToken(token)
+
+    if user is None:
+        retResp["message"] = "Unauthorized access token"
+        return jsonify(retResp), 401
 
     if not request.is_json:
         retResp["message"] = "Invalid request body type, expected JSON"
         return jsonify(retResp), 400
 
     incomData = request.get_json()
+    incomData["owner"] = user.get("userName")
     validateParams(incomData, validKeys)
 
     if not all(key in incomData for key in requiredKeys):
@@ -104,6 +113,17 @@ def getService(serviceId):
 @app.route(appconfig.API_PREFIX + "/<serviceId>", methods=["DELETE"])
 def deleteService(serviceId):
     retResp = {"success": False, "message": ""}
+    token = request.headers.get("Authorization", None)
+
+    if token is None:
+        retResp["message"] = "No access token found"
+        return jsonify(retResp), 401
+
+    user = getUserByToken(token)
+
+    if user is None:
+        retResp["message"] = "Unauthorized access token"
+        return jsonify(retResp), 401
 
     service = mongo.db.service.find_one_and_delete({"serviceId": serviceId})
 
@@ -140,6 +160,17 @@ def patchService(serviceId):
         ##################################
         "code", "kind",
     ]
+    token = request.headers.get("Authorization", None)
+
+    if token is None:
+        retResp["message"] = "No access token found"
+        return jsonify(retResp), 401
+
+    user = getUserByToken(token)
+
+    if user is None:
+        retResp["message"] = "Unauthorized access token"
+        return jsonify(retResp), 401
 
     if not request.is_json:
         retResp["message"] = "Invalid request body type, expected JSON"
@@ -309,3 +340,25 @@ def validateCode(d):
         return False
     else:
         return True
+
+
+def getUserByToken(t):
+    query = {"token": t}
+
+    try:
+        resp = requests.get(appconfig.USER_API, params=query)
+        httpCode = resp.status_code
+        result = resp.json()
+    except requests.ConnectionError:
+        print("getUserByToken: couldn't connect to external service")
+        #  raise
+        pass
+    except requests.ConnectTimeout:
+        print("getUserByToken: connection to external service timeout")
+        #  raise
+        pass
+    else:
+        if httpCode != 200:
+            return None
+        elif len(result) == 1:
+            return result[0]
