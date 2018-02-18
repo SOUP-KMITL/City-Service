@@ -113,6 +113,12 @@ def getService(serviceId):
 @app.route(appconfig.API_PREFIX + "/<serviceId>", methods=["DELETE"])
 def deleteService(serviceId):
     retResp = {"success": False, "message": ""}
+    service = mongo.db.service.find_one_and_delete({"serviceId": serviceId})
+
+    if service is None:
+        retResp["message"] = "Couldn't find serviceId " + serviceId
+        return jsonify(retResp), 404
+
     token = request.headers.get("Authorization", None)
 
     if token is None:
@@ -120,18 +126,11 @@ def deleteService(serviceId):
         return jsonify(retResp), 401
 
     user = getUserByToken(token)
+    username, serviceName, action = getAction(service)
 
-    if user is None:
+    if user is None or user.get("userName") != username:
         retResp["message"] = "Unauthorized access token"
         return jsonify(retResp), 401
-
-    service = mongo.db.service.find_one_and_delete({"serviceId": serviceId})
-
-    if service is None:
-        retResp["message"] = "Couldn't find serviceId " + serviceId
-        return jsonify(retResp), 404
-
-    username, serviceName, action = getAction(service)
 
     try:
         wskutil.deleteAction(action)
@@ -160,17 +159,6 @@ def patchService(serviceId):
         ##################################
         "code", "kind",
     ]
-    token = request.headers.get("Authorization", None)
-
-    if token is None:
-        retResp["message"] = "No access token found"
-        return jsonify(retResp), 401
-
-    user = getUserByToken(token)
-
-    if user is None:
-        retResp["message"] = "Unauthorized access token"
-        return jsonify(retResp), 401
 
     if not request.is_json:
         retResp["message"] = "Invalid request body type, expected JSON"
@@ -190,7 +178,18 @@ def patchService(serviceId):
         retResp["message"] = "Couldn't find serviceId " + serviceId
         return jsonify(retResp), 404
 
+    token = request.headers.get("Authorization", None)
+
+    if token is None:
+        retResp["message"] = "No access token found"
+        return jsonify(retResp), 401
+
+    user = getUserByToken(token)
     username, serviceName, action = getAction(service)
+
+    if user is None or user.get("userName") != username:
+        retResp["message"] = "Unauthorized access token"
+        return jsonify(retResp), 401
 
     if chcode:
         code = base64.b64decode(code).decode()
