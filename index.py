@@ -1,10 +1,11 @@
 from flask import Flask, request, jsonify
 from flask_pymongo import PyMongo
-from pymongo.errors import DuplicateKeyError
+import pymongo
 ***REMOVED***
 import uuid
 import base64
 import binascii
+import time
 
 # Custom modules and packages
 import appconfig
@@ -19,13 +20,20 @@ mongo = PyMongo(app)
 def getServices():
     services = None
     args = request.args
+    size = args.get("size", 20, int)
+    page = args.get("page", 0, int)
+    print(type(size))
+    print(type(page))
+    key = "owner"
+    query = {}
 
-    if "owner" in args:
-        services = mongo.db.service.find(
-                {"owner": args.get("owner")},
-                {"_id": False})
-***REMOVED***
-        services = mongo.db.service.find(projection={"_id": False})
+    if key in args:
+        query[key] = args.get(key)
+
+    services = mongo.db.service.find(query, {"_id": False}) \
+        .skip(page * size) \
+        .limit(size) \
+        .sort("createdAt", pymongo.DESCENDING)
 
     return jsonify(list(services)), 200
 
@@ -239,6 +247,7 @@ def updateService(serviceId, data):
     service = None
 
     if data:
+        data["updatedAt"] = int(time.time())
         service = mongo.db.service.find_one_and_update(
             {"serviceId": serviceId},
             {"$set": data},
@@ -261,8 +270,10 @@ def insertService(data):
                     "thumbnail": data.get("thumbnail", None),
                     "owner": data.get("owner", ""),
                     "endpoint": None,
+                    "createdAt": int(time.time()),
+                    "updatedAt": int(time.time()),
     ***REMOVED***)
-    except DuplicateKeyError:
+    except pymongo.errors.DuplicateKeyError:
         return False
 
     return True
