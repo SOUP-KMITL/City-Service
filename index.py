@@ -113,12 +113,6 @@ def getService(serviceId):
 @app.route(appconfig.API_PREFIX + "/<serviceId>", methods=["DELETE"])
 def deleteService(serviceId):
     retResp = {"success": False, "message": ""}
-    service = mongo.db.service.find_one_and_delete({"serviceId": serviceId})
-
-    if service is None:
-        retResp["message"] = "Couldn't find serviceId " + serviceId
-        return jsonify(retResp), 404
-
     token = request.headers.get("Authorization", None)
 
     if token is None:
@@ -126,11 +120,20 @@ def deleteService(serviceId):
         return jsonify(retResp), 401
 
     user = getUserByToken(token)
-    username, serviceName, action = getAction(service)
 
-    if user is None or user.get("userName") != username:
+    if user is None:
         retResp["message"] = "Unauthorized access token"
         return jsonify(retResp), 401
+
+    service = mongo.db.service.find_one_and_delete(
+        {"serviceId": serviceId, "owner": user.get("userName")})
+
+    if service is None:
+        retResp["message"] = "Couldn't find serviceId " + \
+            serviceId + ", Or invalid access token"
+        return jsonify(retResp), 404
+
+    username, serviceName, action = getAction(service)
 
 ***REMOVED***
         wskutil.deleteAction(action)
@@ -160,6 +163,18 @@ def patchService(serviceId):
         "code", "kind",
     ]
 
+    token = request.headers.get("Authorization", None)
+
+    if token is None:
+        retResp["message"] = "No access token found"
+        return jsonify(retResp), 401
+
+    user = getUserByToken(token)
+
+    if user is None:
+        retResp["message"] = "Unauthorized access token"
+        return jsonify(retResp), 401
+
     if not request.is_json:
         retResp["message"] = "Invalid request body type, expected JSON"
         return jsonify(retResp), 400
@@ -172,24 +187,15 @@ def patchService(serviceId):
         retResp["message"] = "No required fields found"
         return jsonify(retResp), 400
 
-    code, kind, service = updateService(serviceId, incomData)
+    code, kind, service = updateService(
+        serviceId, user.get("userName"), incomData)
 
     if service is None:
-        retResp["message"] = "Couldn't find serviceId " + serviceId
+        retResp["message"] = "Couldn't find serviceId " + \
+            serviceId + ", Or invalid access token"
         return jsonify(retResp), 404
 
-    token = request.headers.get("Authorization", None)
-
-    if token is None:
-        retResp["message"] = "No access token found"
-        return jsonify(retResp), 401
-
-    user = getUserByToken(token)
     username, serviceName, action = getAction(service)
-
-    if user is None or user.get("userName") != username:
-        retResp["message"] = "Unauthorized access token"
-        return jsonify(retResp), 401
 
     if chcode:
         code = base64.b64decode(code).decode()
@@ -271,7 +277,7 @@ def getDataService(serviceId):
     return jsonify(retResp), 200
 
 
-def updateService(serviceId, data):
+def updateService(serviceId, username, data):
     code = data.pop("code", None)
     kind = data.pop("kind", None)
     service = None
@@ -279,12 +285,12 @@ def updateService(serviceId, data):
     if data:
         data["updatedAt"] = int(time.time())
         service = mongo.db.service.find_one_and_update(
-            {"serviceId": serviceId},
+            {"serviceId": serviceId, "owner": username},
             {"$set": data},
             projection={"_id": False})
 ***REMOVED***
         service = mongo.db.service.find_one(
-            {"serviceId": serviceId},
+            {"serviceId": serviceId, "owner": username},
             {"_id": False})
 
     return code, kind, service
