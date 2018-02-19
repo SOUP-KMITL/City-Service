@@ -42,8 +42,8 @@ def getServices():
 @app.route(appconfig.API_PREFIX, methods=["POST"])
 def createService():
     retResp = {"success": False, "message": ""}
-    validKeys = ["owner", "serviceName", "thumbnail", "description"]
-    requiredKeys = validKeys[:-2]
+    validKeys = ["serviceName", "description"]
+    requiredKeys = validKeys[:-1]
     token = request.headers.get("Authorization", None)
 
     if token is None:
@@ -160,8 +160,7 @@ def deleteService(serviceId):
 def patchService(serviceId):
     retResp = {"success": False, "message": ""}
     validKeys = [
-        "description", "thumbnail", "endpoint",
-        "sampleData", "appLink", "videoLink", "swagger",
+        "description", "endpoint", "sampleData", "appLink", "videoLink",
         ##################################
         "code", "kind",
     ]
@@ -414,6 +413,8 @@ def updateService(serviceId, username, data):
 
 
 def insertService(data):
+    currentTime = int(time.time())
+
 ***REMOVED***
         mongo.db.service.insert_one(
                 {
@@ -421,10 +422,14 @@ def insertService(data):
                     "serviceName": data.get("serviceName", ""),
                     "description": data.get("description", ""),
                     "thumbnail": data.get("thumbnail", None),
+                    "swagger": data.get("swagger", None),
+                    "sampleData": data.get("sampleData", None),
+                    "appLink": data.get("appLink", ""),
+                    "videoLink": data.get("videoLink", "")
                     "owner": data.get("owner", ""),
-                    "endpoint": None,
-                    "createdAt": int(time.time()),
-                    "updatedAt": int(time.time()),
+                    "endpoint": data.get("endpoint", ""),
+                    "createdAt": currentTime,
+                    "updatedAt": currentTime,
     ***REMOVED***)
     except pymongo.errors.DuplicateKeyError:
         return False
