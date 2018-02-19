@@ -239,13 +239,13 @@ def uploadThumbnail(serviceId):
     f = request.files.get("file", None)
 
     if f is None:
-        retResp["message"] = "Couldn't find the file uploaded"
+        retResp["message"] = "Couldn't find the file being uploaded"
         return jsonify(retResp), 400
 
     buf = f.read()
 
-    if not f.filename or not isAllowedFile(f.filename, len(buf)):
-        retResp["message"] = "Uploaded file is incorrect"
+    if not f.filename or not isAllowedImage(f.filename, len(buf)):
+        retResp["message"] = "File being uploaded is incorrect"
         return jsonify(retResp), 400
 
     code, kind, service = updateService(
@@ -267,6 +267,10 @@ def downloadThumbnail(serviceId):
         {"serviceId": serviceId},
         {"_id": False, "thumbnail": True}).get("thumbnail")
 
+    if thumbnail is None:
+        retResp = {"success": False, "message": "No thumbnail found"}
+        return jsonify(retResp), 404
+
     resp = make_response(thumbnail)
     resp.headers["Content-Type"] = "image/png"
     resp.status_code = 200
@@ -276,12 +280,59 @@ def downloadThumbnail(serviceId):
 
 @app.route(appconfig.API_PREFIX + "/<serviceId>/swagger", methods=["PUT"])
 def uploadSwagger(serviceId):
-    pass
+    retResp = {"success": False, "message": ""}
+    token = request.headers.get("Authorization", None)
+
+    if token is None:
+        retResp["message"] = "No access token found"
+        return jsonify(retResp), 401
+
+    user = getUserByToken(token)
+
+    if user is None:
+        retResp["message"] = "Unauthorized access token"
+        return jsonify(retResp), 401
+
+    f = request.files.get("file", None)
+
+    if f is None:
+        retResp["message"] = "Couldn't find the file being uploaded"
+        return jsonify(retResp), 400
+
+    buf = f.read()
+
+    if not f.filename or not isAllowedYAML(f.filename, len(buf)):
+        retResp["message"] = "File being uploaded is incorrect"
+        return jsonify(retResp), 400
+
+    code, kind, service = updateService(
+        serviceId, user.get("userName"), {"swagger": buf})
+
+    if service is None:
+        retResp["message"] = "Couldn't find serviceId " + \
+            serviceId + ", Or invalid access token"
+        return jsonify(retResp), 404
+
+    retResp["message"] = "File is uploaded successful"
+    retResp["success"] = True
+    return jsonify(retResp), 200
 
 
 @app.route(appconfig.API_PREFIX + "/<serviceId>/swagger")
 def downloadSwagger(serviceId):
-    pass
+    swagger = mongo.db.service.find_one(
+        {"serviceId": serviceId},
+        {"_id": False, "swagger": True}).get("swagger")
+
+    if swagger is None:
+        retResp = {"success": False, "message": "No swagger file found"}
+        return jsonify(retResp), 404
+
+    resp = make_response(swagger)
+    resp.headers["Content-Type"] = "text/plain"
+    resp.status_code = 200
+
+    return resp
 
 
 @app.route(appconfig.API_PREFIX + "/<serviceId>/activations", methods=["POST"])
@@ -431,7 +482,7 @@ def getUserByToken(t):
             return result[0]
 
 
-def isAllowedFile(name, size):
+def isAllowedImage(name, size):
     # 1MB maximum
     if size > 1 * 1024 * 1024:
         return False
@@ -439,6 +490,19 @@ def isAllowedFile(name, size):
     ext = name.split(".")[-1]
 
     if ext != "png" and ext != "jpg" and ext != "jpeg":
+        return False
+
+    return True
+
+
+def isAllowedYAML(name, size):
+    # 1MB maximum
+    if size > 1 * 1024 * 1024:
+        return False
+
+    ext = name.split(".")[-1]
+
+    if ext != "yaml" and ext != "yml":
         return False
 
     return True
