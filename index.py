@@ -1,5 +1,6 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response
 from flask_pymongo import PyMongo
+from werkzeug.utils import secure_filename
 import pymongo
 import requests
 import uuid
@@ -28,7 +29,9 @@ def getServices():
     if key in args:
         query[key] = args.get(key)
 
-    services = mongo.db.service.find(query, {"_id": False}) \
+    services = mongo.db.service.find(
+        query,
+        {"_id": False, "thumbnail": False, "swagger": False}) \
         .skip(page * size) \
         .limit(size) \
         .sort("createdAt", pymongo.DESCENDING)
@@ -100,8 +103,8 @@ def getService(serviceId):
     retResp = {"success": False, "message": ""}
 
     service = mongo.db.service.find_one(
-            {"serviceId": serviceId},
-            {"_id": False})
+        {"serviceId": serviceId},
+        {"_id": False, "thumbnail": False, "swagger": False})
 
     if service is None:
         retResp["message"] = "Couldn't find serviceId " + serviceId
@@ -218,6 +221,69 @@ def patchService(serviceId):
     return jsonify(retResp), 200
 
 
+@app.route(appconfig.API_PREFIX + "/<serviceId>/thumbnail", methods=["PUT"])
+def uploadThumbnail(serviceId):
+    retResp = {"success": False, "message": ""}
+    token = request.headers.get("Authorization", None)
+
+    if token is None:
+        retResp["message"] = "No access token found"
+        return jsonify(retResp), 401
+
+    user = getUserByToken(token)
+
+    if user is None:
+        retResp["message"] = "Unauthorized access token"
+        return jsonify(retResp), 401
+
+    f = request.files.get("file", None)
+
+    if f is None:
+        retResp["message"] = "Couldn't find the file uploaded"
+        return jsonify(retResp), 400
+
+    buf = f.read()
+
+    if not f.filename or not isAllowedFile(f.filename, len(buf)):
+        retResp["message"] = "Uploaded file is incorrect"
+        return jsonify(retResp), 400
+
+    code, kind, service = updateService(
+        serviceId, user.get("userName"), {"thumbnail": buf})
+
+    if service is None:
+        retResp["message"] = "Couldn't find serviceId " + \
+            serviceId + ", Or invalid access token"
+        return jsonify(retResp), 404
+
+    retResp["message"] = "File is uploaded successful"
+    retResp["success"] = True
+    return jsonify(retResp), 200
+
+
+@app.route(appconfig.API_PREFIX + "/<serviceId>/thumbnail")
+def downloadThumbnail(serviceId):
+    thumbnail = mongo.db.service.find_one(
+        {"serviceId": serviceId},
+        {"_id": False, "thumbnail": True}).get("thumbnail")
+
+    resp = make_response(thumbnail)
+    resp.headers["Content-Type"] = "image/png"
+    resp.status_code = 200
+
+    return resp
+
+
+@app.route(appconfig.API_PREFIX + "/<serviceId>/swagger", methods=["PUT"])
+def uploadSwagger(serviceId):
+    pass
+
+
+@app.route(appconfig.API_PREFIX + "/<serviceId>/swagger")
+def downloadSwagger(serviceId):
+    pass
+
+
 @app.route(appconfig.API_PREFIX + "/<serviceId>/activations", methods=["POST"])
 def invokeService(serviceId):
     retResp = {"success": False, "message": ""}
@@ -326,13 +392,9 @@ def validateParams(d, vkeys):
         d.pop(key)
 
 
-def validateName(name):
-    return name.replace(" ", "-")
-
-
 def getAction(d):
-    username = validateName(d.get("owner", ""))
-    serviceName = validateName(d.get("serviceName", ""))
+    username = secure_filename(d.get("owner", ""))
+    serviceName = secure_filename(d.get("serviceName", ""))
     action = username + "/" + serviceName
 
     return username, serviceName, action
@@ -367,3 +429,16 @@ def getUserByToken(t):
             return None
         elif len(result) == 1:
             return result[0]
+
+
+def isAllowedFile(name, size):
+    # 1MB maximum
+    if size > 1 * 1024 * 1024:
+        return False
+
+    ext = name.split(".")[-1]
+
+    if ext != "png" and ext != "jpg" and ext != "jpeg":
+        return False
+
+    return True
