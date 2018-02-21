@@ -31,15 +31,17 @@ def get_services():
     if key in args:
         query[key] = args.get(key)
 
-    services = mongo.db.service.find(
-        query, {Service.Field.id: False}) \
-        .skip(page * size) \
-        .limit(size) \
-        .sort(Service.Field.created_at, pymongo.DESCENDING)
+    services = mongo.db.service.find(query, {Service.Field.id: False})
 
-    services = helper.bin_to_url(services)
+    if page < 0:
+        page = 0
 
-    return jsonify(services), 200
+    if size < 0:
+        size = 20
+
+    page = helper.get_page(services, page, size)
+
+    return jsonify(page), 200
 
 
 @app.route(appconfig.API_PREFIX, methods=["POST"])
