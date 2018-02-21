@@ -2,6 +2,8 @@
 ***REMOVED***
 
 ***REMOVED***
+
+***REMOVED***
 ***REMOVED***
 ***REMOVED***
 ***REMOVED***
@@ -35,9 +37,7 @@ def createPackage(pname):
 ***REMOVED***
 ***REMOVED***
             print("createPackage: " + error)
-    ***REMOVED*** Exception(httpCode, error)
-    finally:
-        return httpCode
+    ***REMOVED*** ServiceException(httpCode, error)
 
 
 def deletePackage(pname):
@@ -60,9 +60,7 @@ def deletePackage(pname):
 ***REMOVED***
 ***REMOVED***
             print("deletePackage: " + error)
-    ***REMOVED*** Exception(httpCode, error)
-    finally:
-        return httpCode
+    ***REMOVED*** ServiceException(httpCode, error)
 
 
 def updateAction(action, kind, code, overwrite):
@@ -97,9 +95,7 @@ def updateAction(action, kind, code, overwrite):
 ***REMOVED***
 ***REMOVED***
             print("updateAction: " + error)
-    ***REMOVED*** Exception(httpCode, error)
-    finally:
-        return httpCode
+    ***REMOVED*** ServiceException(httpCode, error)
 
 
 def deleteAction(action):
@@ -122,13 +118,13 @@ def deleteAction(action):
 ***REMOVED***
 ***REMOVED***
             print("deleteAction: " + error)
-    ***REMOVED*** Exception(httpCode, error)
-    finally:
-        return httpCode
+    ***REMOVED*** ServiceException(httpCode, error)
 
 
 def invokeAction(action, params):
 ***REMOVED***
+    result = None
+
 ***REMOVED***
 ***REMOVED***
 ***REMOVED***
@@ -151,6 +147,6 @@ def invokeAction(action, params):
 ***REMOVED***
 ***REMOVED***
             print("invokeAction: " + error)
-    ***REMOVED*** Exception(httpCode, error)
-    finally:
-        return httpCode, result
+    ***REMOVED*** ServiceException(httpCode, error)
+
+    return result

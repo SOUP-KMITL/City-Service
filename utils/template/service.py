@@ -1,0 +1,17 @@
+class Service:
+    class Field:
+        id           = "_id"
+        service_id   = "serviceId"
+        service_name = "serviceName"
+        description  = "description"
+        thumbnail    = "thumbnail"
+        swagger      = "swagger"
+        sameple_data = "sampleData"
+        app_link     = "appLink"
+        video_link   = "videoLink"
+        owner        = "owner"
+        endpoint     = "endpoint"
+        created_at   = "createdAt"
+        updated_at   = "updatedAt"
+        code         = "code"
+        kind         = "kind"

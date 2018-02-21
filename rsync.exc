@@ -7,4 +7,5 @@ Pipfile.lock
 deploy.sh
 verbose.out
 rsync.exc
+test/
 !.dockerignore

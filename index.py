@@ -1,513 +1,340 @@
 from flask import Flask, request, jsonify, make_response
 from flask_pymongo import PyMongo
-from werkzeug.utils import secure_filename
 import pymongo
 ***REMOVED***
-import uuid
 import base64
 import binascii
-import time
 
 # Custom modules and packages
+from utils import wskutil
+from utils.template.service import Service
+from utils.template.user import User
+from utils.error import ServiceException
+import helper
 import appconfig
-import wskutil
 
 app = Flask(__name__)
 app.config.from_object("appconfig.DefaultConfig")
 mongo = PyMongo(app)
+helper.set_mongo_instance(mongo)
 
 
 @app.route(appconfig.API_PREFIX)
-def getServices():
+def get_services():
     services = None
     args = request.args
     size = args.get("size", 20, int)
     page = args.get("page", 0, int)
-    key = "owner"
+    key = Service.Field.owner
     query = {}
 
     if key in args:
         query[key] = args.get(key)
 
     services = mongo.db.service.find(
-        query,
-        {"_id": False, "thumbnail": False, "swagger": False}) \
+        query, {Service.Field.id: False}) \
         .skip(page * size) \
         .limit(size) \
-        .sort("createdAt", pymongo.DESCENDING)
+        .sort(Service.Field.created_at, pymongo.DESCENDING)
 
-    return jsonify(list(services)), 200
+    services = helper.bin_to_url(services)
+
+    return jsonify(services), 200
 
 
 @app.route(appconfig.API_PREFIX, methods=["POST"])
-def createService():
-    retResp = {"success": False, "message": ""}
-    validKeys = ["serviceName", "description"]
-    requiredKeys = validKeys[:-1]
-    token = request.headers.get("Authorization", None)
+def create_service():
+    ret_resp = {appconfig.SUCCESS: False, appconfig.MESSAGE: ""}
+    valid_keys = [
+        Service.Field.service_name,
+        Service.Field.owner,
+        Service.Field.description,
+    ]
+    required_keys = valid_keys[:-1]
+    token = request.headers.get(appconfig.AUTH_HEAD, None)
+    user = helper.get_user_by_token(token)
 
-    if token is None:
-        retResp["message"] = "No access token found"
-        return jsonify(retResp), 401
+    helper.assert_user(user)
 
-    user = getUserByToken(token)
+    din = helper.get_json_body(request)
+    din[Service.Field.owner] = user.get(User.Field.username, "")
 
-    if user is None:
-        retResp["message"] = "Unauthorized access token"
-        return jsonify(retResp), 401
+    helper.assert_input(din, required_keys, valid_keys)
 
-    if not request.is_json:
-        retResp["message"] = "Invalid request body type, expected JSON"
-        return jsonify(retResp), 400
+    action = helper.get_action(
+        din.get(Service.Field.owner, ""),
+        din.get(Service.Field.service_name, ""))
+    service = helper.insert_service(din)
 
-    incomData = request.get_json()
-    incomData["owner"] = user.get("userName")
-    validateParams(incomData, validKeys)
+    assert service is not None, (409, "Service " + action + " already exists")
 
-    if not all(key in incomData for key in requiredKeys):
-        retResp["message"] = "Required fileds are missing: " + \
-                ", ".join(requiredKeys)
-        return jsonify(retResp), 400
+    helper.init_action(action)
 
-    username, serviceName, action = getAction(incomData)
+    ret_resp[appconfig.SUCCESS] = True
+    ret_resp[appconfig.MESSAGE] = "Service " + action + \
+        " is successfully created."
+    ret_resp[Service.Field.service_id] = \
+        service.get(Service.Field.service_id, "")
 
-    if not insertService(incomData):
-        retResp["message"] = "Service " + action + " already exists"
-        return jsonify(retResp), 409
-
-    f = open(appconfig.TEMPLATE, "r")
-    code = f.read()
-
-    for i in range(2):
-    ***REMOVED***
-            if i == 1:
-                wskutil.createPackage(username)
-            wskutil.updateAction(action, "nodejs:6", code, False)
-        except (requests.ConnectionError, requests.ConnectTimeout) as e:
-            retResp["message"] = e.__str__()
-            return jsonify(retResp), 500
-        except Exception as e:
-            httpCode = e.args[0]
-            if i == 1 or httpCode != 404:
-                retResp["message"] = e.args[1]
-                return jsonify(retResp), httpCode
-
-    retResp["message"] = "service " + action + " is successfully created."
-    retResp["success"] = True
-
-    return jsonify(retResp), 201
+    return jsonify(ret_resp), 201
 
 
-@app.route(appconfig.API_PREFIX + "/<serviceId>")
-def getService(serviceId):
-    retResp = {"success": False, "message": ""}
+@app.route(appconfig.API_PREFIX + "/<service_id>")
+def get_service(service_id):
+    ret_resp = {appconfig.SUCCESS: False, appconfig.MESSAGE: ""}
 
     service = mongo.db.service.find_one(
-        {"serviceId": serviceId},
-        {"_id": False, "thumbnail": False, "swagger": False})
+        {Service.Field.service_id: service_id},
+        {
+            Service.Field.id: False,
+            Service.Field.thumbnail: False,
+            Service.Field.swagger: False
+        })
 
     if service is None:
-        retResp["message"] = "Couldn't find serviceId " + serviceId
-        return jsonify(retResp), 404
+        ret_resp[appconfig.MESSAGE] = "Couldn't find service " + service_id
+        return jsonify(ret_resp), 404
 
     return jsonify(service), 200
 
 
-@app.route(appconfig.API_PREFIX + "/<serviceId>", methods=["DELETE"])
-def deleteService(serviceId):
-    retResp = {"success": False, "message": ""}
-    token = request.headers.get("Authorization", None)
+@app.route(appconfig.API_PREFIX + "/<service_id>", methods=["DELETE"])
+def delete_service(service_id):
+    ret_resp = {appconfig.SUCCESS: False, appconfig.MESSAGE: ""}
+    token = request.headers.get(appconfig.AUTH_HEAD, None)
+    user = helper.get_user_by_token(token)
 
-    if token is None:
-        retResp["message"] = "No access token found"
-        return jsonify(retResp), 401
+    helper.assert_user(user)
 
-    user = getUserByToken(token)
-
-    if user is None:
-        retResp["message"] = "Unauthorized access token"
-        return jsonify(retResp), 401
-
+    username = user.get(User.Field.username, "")
     service = mongo.db.service.find_one_and_delete(
-        {"serviceId": serviceId, "owner": user.get("userName")})
+        {
+            Service.Field.service_id: service_id,
+            Service.Field.owner: username
+        })
 
-    if service is None:
-        retResp["message"] = "Couldn't find serviceId " + \
-            serviceId + ", Or invalid access token"
-        return jsonify(retResp), 404
+    helper.assert_service_and_owner(service)
 
-    username, serviceName, action = getAction(service)
+    action = helper.get_action(
+        username,
+        service.get(Service.Field.service_name, ""))
 
 ***REMOVED***
         wskutil.deleteAction(action)
         wskutil.deletePackage(username)
-    except (requests.ConnectionError, requests.ConnectTimeout) as e:
-        retResp["message"] = e.__str__()
-        return jsonify(retResp), 500
-    except Exception as e:
-        httpCode = e.args[0]
-        if httpCode != 409:
-            retResp["message"] = e.args[1]
-            return jsonify(retResp), httpCode
+    except ServiceException as e:
+        if e.http_code != 409:
+    ***REMOVED***
 
-    retResp["success"] = True
-    retResp["message"] = "Service " + action + " is successfully deleted"
+    ret_resp[appconfig.SUCCESS] = True
+    ret_resp[appconfig.MESSAGE] = "Service " + service_id + \
+        " is successfully deleted"
 
-    return jsonify(retResp), 200
+    return jsonify(ret_resp), 200
 
 
-@app.route(appconfig.API_PREFIX + "/<serviceId>", methods=["PATCH"])
-def patchService(serviceId):
-    retResp = {"success": False, "message": ""}
+@app.route(appconfig.API_PREFIX + "/<service_id>", methods=["PATCH"])
+def patch_service(service_id):
+    ret_resp = {appconfig.SUCCESS: False, appconfig.MESSAGE: ""}
     validKeys = [
-        "description", "endpoint", "sampleData", "appLink", "videoLink",
+        Service.Field.description, Service.Field.endpoint,
+        Service.Field.sameple_data, Service.Field.app_link,
+        Service.Field.video_link,
         ##################################
-        "code", "kind",
+        Service.Field.code, Service.Field.kind,
     ]
+    token = request.headers.get(appconfig.AUTH_HEAD, None)
+    user = helper.get_user_by_token(token)
 
-    token = request.headers.get("Authorization", None)
+    helper.assert_user(user)
 
-    if token is None:
-        retResp["message"] = "No access token found"
-        return jsonify(retResp), 401
+    din = helper.get_json_body(request)
 
-    user = getUserByToken(token)
+    # filtering
+    helper.filter_params(din, validKeys)
 
-    if user is None:
-        retResp["message"] = "Unauthorized access token"
-        return jsonify(retResp), 401
+    assert len(din) > 0, (400, "No required fields found")
 
-    if not request.is_json:
-        retResp["message"] = "Invalid request body type, expected JSON"
-        return jsonify(retResp), 400
+    chcode, code, kind = helper.extract_code(din)
+    username = user.get(User.Field.username, "")
+    service = helper.update_service(service_id, username, din)
 
-    incomData = request.get_json()
-    validateParams(incomData, validKeys)
-    chcode = validateCode(incomData)
+    helper.assert_service_and_owner(service)
 
-    if len(incomData) == 0:
-        retResp["message"] = "No required fields found"
-        return jsonify(retResp), 400
-
-    code, kind, service = updateService(
-        serviceId, user.get("userName"), incomData)
-
-    if service is None:
-        retResp["message"] = "Couldn't find serviceId " + \
-            serviceId + ", Or invalid access token"
-        return jsonify(retResp), 404
-
-    username, serviceName, action = getAction(service)
+    action = helper.get_action(
+        username,
+        service.get(Service.Field.service_name, ""))
 
     if chcode:
         code = base64.b64decode(code).decode()
+        wskutil.updateAction(action, kind, code, True)
 
-    ***REMOVED***
-            wskutil.updateAction(action, kind, code, True)
-        except (requests.ConnectionError, requests.ConnectTimeout) as e:
-            retResp["message"] = e.__str__()
-            return jsonify(retResp), 500
-        except binascii.Error:
-            retResp["message"] = "Invalid base64 encoded message"
-            return jsonify(retResp), 400
-        except Exception as e:
-            retResp["message"] = e.args[1]
-            return jsonify(retResp), e.args[0]
+    ret_resp[appconfig.SUCCESS] = True
+    ret_resp[appconfig.MESSAGE] = "Service " + service_id + \
+        " is successfully updated"
 
-    retResp["success"] = True
-    retResp["message"] = "service " + action + " is successfully updated"
-
-    return jsonify(retResp), 200
+    return jsonify(ret_resp), 200
 
 
-@app.route(appconfig.API_PREFIX + "/<serviceId>/thumbnail", methods=["PUT"])
-def uploadThumbnail(serviceId):
-    retResp = {"success": False, "message": ""}
-    token = request.headers.get("Authorization", None)
+@app.route(appconfig.API_PREFIX + "/<service_id>/thumbnail", methods=["PUT"])
+def upload_thumbnail(service_id):
+    ret_resp = {appconfig.SUCCESS: False, appconfig.MESSAGE: ""}
+    token = request.headers.get(appconfig.AUTH_HEAD, None)
+    user = helper.get_user_by_token(token)
 
-    if token is None:
-        retResp["message"] = "No access token found"
-        return jsonify(retResp), 401
+    helper.assert_user(user)
 
-    user = getUserByToken(token)
+    f = request.files.get(appconfig.FILE, None)
 
-    if user is None:
-        retResp["message"] = "Unauthorized access token"
-        return jsonify(retResp), 401
-
-    f = request.files.get("file", None)
-
-    if f is None:
-        retResp["message"] = "Couldn't find the file being uploaded"
-        return jsonify(retResp), 400
+    helper.assert_file(f)
 
     buf = f.read()
 
-    if not f.filename or not isAllowedImage(f.filename, len(buf)):
-        retResp["message"] = "File being uploaded is incorrect"
-        return jsonify(retResp), 400
+    helper.assert_valid_file(f, buf, helper.allowed_image)
 
-    code, kind, service = updateService(
-        serviceId, user.get("userName"), {"thumbnail": buf})
+    service = helper.update_service(
+        service_id,
+        user.get(User.Field.username, ""),
+        {Service.Field.thumbnail: buf})
 
-    if service is None:
-        retResp["message"] = "Couldn't find serviceId " + \
-            serviceId + ", Or invalid access token"
-        return jsonify(retResp), 404
+    helper.assert_service_and_owner(service)
 
-    retResp["message"] = "File is uploaded successful"
-    retResp["success"] = True
-    return jsonify(retResp), 200
+    ret_resp[appconfig.SUCCESS] = "Thumbnail is uploaded successful"
+    ret_resp[appconfig.MESSAGE] = True
+
+    return jsonify(ret_resp), 200
 
 
-@app.route(appconfig.API_PREFIX + "/<serviceId>/thumbnail")
-def downloadThumbnail(serviceId):
+@app.route(appconfig.API_PREFIX + "/<service_id>/thumbnail")
+def download_thumbnail(service_id):
     thumbnail = mongo.db.service.find_one(
-        {"serviceId": serviceId},
-        {"_id": False, "thumbnail": True}).get("thumbnail")
+        {Service.Field.service_id: service_id},
+        {Service.Field.id: False, Service.Field.thumbnail: True}) \
+        .get(Service.Field.thumbnail, None)
 
-    if thumbnail is None:
-        retResp = {"success": False, "message": "No thumbnail found"}
-        return jsonify(retResp), 404
+    assert thumbnail is not None, (404, "No thumbnail file found")
 
     resp = make_response(thumbnail)
-    resp.headers["Content-Type"] = "image/png"
+    resp.headers[appconfig.TYPE_HEAD] = "image/png"
     resp.status_code = 200
 
     return resp
 
 
-@app.route(appconfig.API_PREFIX + "/<serviceId>/swagger", methods=["PUT"])
-def uploadSwagger(serviceId):
-    retResp = {"success": False, "message": ""}
-    token = request.headers.get("Authorization", None)
+@app.route(appconfig.API_PREFIX + "/<service_id>/swagger", methods=["PUT"])
+def upload_swagger(service_id):
+    ret_resp = {appconfig.SUCCESS: False, appconfig.MESSAGE: ""}
+    token = request.headers.get(appconfig.AUTH_HEAD, None)
+    user = helper.get_user_by_token(token)
 
-    if token is None:
-        retResp["message"] = "No access token found"
-        return jsonify(retResp), 401
+    helper.assert_user(user)
 
-    user = getUserByToken(token)
+    f = request.files.get(appconfig.FILE, None)
 
-    if user is None:
-        retResp["message"] = "Unauthorized access token"
-        return jsonify(retResp), 401
-
-    f = request.files.get("file", None)
-
-    if f is None:
-        retResp["message"] = "Couldn't find the file being uploaded"
-        return jsonify(retResp), 400
+    helper.assert_file(f)
 
     buf = f.read()
 
-    if not f.filename or not isAllowedYAML(f.filename, len(buf)):
-        retResp["message"] = "File being uploaded is incorrect"
-        return jsonify(retResp), 400
+    helper.assert_valid_file(f, buf, helper.allowed_YAML)
 
-    code, kind, service = updateService(
-        serviceId, user.get("userName"), {"swagger": buf})
+    service = helper.update_service(
+        service_id,
+        user.get(User.Field.username, ""),
+        {Service.Field.swagger: buf})
 
-    if service is None:
-        retResp["message"] = "Couldn't find serviceId " + \
-            serviceId + ", Or invalid access token"
-        return jsonify(retResp), 404
+    helper.assert_service_and_owner(service)
 
-    retResp["message"] = "File is uploaded successful"
-    retResp["success"] = True
-    return jsonify(retResp), 200
+    ret_resp[appconfig.SUCCESS] = True
+    ret_resp[appconfig.MESSAGE] = "File is uploaded successful"
+
+    return jsonify(ret_resp), 200
 
 
-@app.route(appconfig.API_PREFIX + "/<serviceId>/swagger")
-def downloadSwagger(serviceId):
+@app.route(appconfig.API_PREFIX + "/<service_id>/swagger")
+def download_swagger(service_id):
     swagger = mongo.db.service.find_one(
-        {"serviceId": serviceId},
-        {"_id": False, "swagger": True}).get("swagger")
+        {Service.Field.service_id: service_id},
+        {
+            Service.Field.id: False,
+            Service.Field.swagger: True
+        }).get(Service.Field.swagger, None)
 
-    if swagger is None:
-        retResp = {"success": False, "message": "No swagger file found"}
-        return jsonify(retResp), 404
+    assert swagger is not None, (404, "No swagger file found")
 
     resp = make_response(swagger)
-    resp.headers["Content-Type"] = "text/plain"
+    resp.headers[appconfig.TYPE_HEAD] = "text/plain"
     resp.status_code = 200
 
     return resp
 
 
-@app.route(appconfig.API_PREFIX + "/<serviceId>/activations", methods=["POST"])
-def invokeService(serviceId):
-    retResp = {"success": False, "message": ""}
-    params = None
+#  @app.route(appconfig.API_PREFIX + "/<serviceId>/activations",
+#  methods=["POST"])
+#  def invokeService(serviceId):
+#      ret_resp = {"success": False, "message": ""}
+#      params = None
 
-    if request.is_json:
-        params = request.get_json()
+#      if request.is_json:
+#          params = request.get_json()
 
-    service = mongo.db.service.find_one(
-        {"serviceId": serviceId},
-        {"_id": False})
+#      service = mongo.db.service.find_one(
+#          {"serviceId": serviceId},
+#          {"_id": False})
 
-    if service is None:
-        retResp["message"] = "Couldn't find serviceId " + serviceId
-        return jsonify(retResp), 404
+#      if service is None:
+#          ret_resp["message"] = "Couldn't find serviceId " + serviceId
+#          return jsonify(ret_resp), 404
 
-    username, serviceName, action = getAction(service)
+#      username, serviceName, action = getAction(service)
 
-***REMOVED***
-        httpCode, data = wskutil.invokeAction(action, params)
-    except (requests.ConnectionError, requests.ConnectTimeout) as e:
-        retResp["message"] = e.__str__()
-        return jsonify(retResp), 500
-    except Exception as e:
-        retResp["message"] = e.args[1]
-        return jsonify(retResp), e.args[0]
-***REMOVED***
-        retResp = data
+#      http_code, data = wskutil.invokeAction(action, params)
+#      ret_resp = data
 
-    return jsonify(retResp), 200
+#      return jsonify(ret_resp), 200
 
 
-@app.route(appconfig.API_PREFIX + "/<serviceId>/data")
-def getDataService(serviceId):
-    retResp = {"success": False, "message": ""}
-    service = mongo.db.service.find_one(
-        {"serviceId": serviceId},
-        {"_id": False})
+#  @app.route(appconfig.API_PREFIX + "/<serviceId>/data")
+#  def getDataService(serviceId):
+#      ret_resp = {"success": False, "message": ""}
+#      service = mongo.db.service.find_one(
+#          {"serviceId": serviceId},
+#          {"_id": False})
 
-    if service is None:
-        retResp["message"] = "Couldn't find serviceId " + serviceId
-        return jsonify(retResp), 404
+#      if service is None:
+#          ret_resp["message"] = "Couldn't find serviceId " + serviceId
+#          return jsonify(ret_resp), 404
 
-    username, serviceName, action = getAction(service)
+#      username, serviceName, action = getAction(service)
 
-***REMOVED***
-        httpCode, data = wskutil.invokeAction(action, None)
-    except (requests.ConnectionError, requests.ConnectTimeout) as e:
-        retResp["message"] = e.__str__()
-        return jsonify(retResp), 500
-    except Exception as e:
-        retResp["message"] = e.args[1]
-        return jsonify(retResp), e.args[0]
-***REMOVED***
-        retResp = data
+#      http_code, data = wskutil.invokeAction(action, None)
+#      ret_resp = data
 
-    return jsonify(retResp), 200
+#      return jsonify(ret_resp), 200
 
 
-def updateService(serviceId, username, data):
-    code = data.pop("code", None)
-    kind = data.pop("kind", None)
-    service = None
-
-    if data:
-        data["updatedAt"] = int(time.time())
-        service = mongo.db.service.find_one_and_update(
-            {"serviceId": serviceId, "owner": username},
-            {"$set": data},
-            projection={"_id": False})
-***REMOVED***
-        service = mongo.db.service.find_one(
-            {"serviceId": serviceId, "owner": username},
-            {"_id": False})
-
-    return code, kind, service
+@app.errorhandler(requests.ConnectionError)
+def conn_err_handler(e):
+    return jsonify(helper.direct_err(e)), 500
 
 
-def insertService(data):
-    currentTime = int(time.time())
-
-***REMOVED***
-        mongo.db.service.insert_one(
-                {
-                    "serviceId": str(uuid.uuid1()),
-                    "serviceName": data.get("serviceName", ""),
-                    "description": data.get("description", ""),
-                    "thumbnail": data.get("thumbnail", None),
-                    "swagger": data.get("swagger", None),
-                    "sampleData": data.get("sampleData", None),
-                    "appLink": data.get("appLink", ""),
-                    "videoLink": data.get("videoLink", "")
-                    "owner": data.get("owner", ""),
-                    "endpoint": data.get("endpoint", ""),
-                    "createdAt": currentTime,
-                    "updatedAt": currentTime,
-    ***REMOVED***)
-    except pymongo.errors.DuplicateKeyError:
-        return False
-
-    return True
+@app.errorhandler(requests.ConnectTimeout)
+def timeout_err_handler(e):
+    return jsonify(helper.direct_err(e)), 500
 
 
-def validateParams(d, vkeys):
-    invalidKeys = []
-
-    for key, value in d.items():
-        if key not in vkeys or not value:
-            invalidKeys.append(key)
-
-    for key in invalidKeys:
-        d.pop(key)
+@app.errorhandler(ServiceException)
+def custom_err_handler(e):
+    ret_resp = {"success": False, "message": e.message}
+    return jsonify(ret_resp), e.http_code
 
 
-def getAction(d):
-    username = secure_filename(d.get("owner", ""))
-    serviceName = secure_filename(d.get("serviceName", ""))
-    action = username + "/" + serviceName
-
-    return username, serviceName, action
+@app.errorhandler(binascii.Error)
+def base64_err_handler(e):
+    ret_resp = {"success": False, "message": "Invalid base64 encoded message"}
+    return jsonify(ret_resp), 400
 
 
-def validateCode(d):
-    if not ("code" in d and "kind" in d):
-        d.pop("code", None)
-        d.pop("kind", None)
-        return False
-***REMOVED***
-        return True
-
-
-def getUserByToken(t):
-    query = {"token": t}
-
-***REMOVED***
-        resp = requests.get(appconfig.USER_API, params=query)
-        httpCode = resp.status_code
-***REMOVED***
-***REMOVED***
-        print("getUserByToken: couldn't connect to external service")
-        #  raise
-        pass
-***REMOVED***
-        print("getUserByToken: connection to external service timeout")
-        #  raise
-        pass
-***REMOVED***
-        if httpCode != 200:
-            return None
-        elif len(result) == 1:
-            return result[0]
-
-
-def isAllowedImage(name, size):
-    # 1MB maximum
-    if size > 1 * 1024 * 1024:
-        return False
-
-    ext = name.split(".")[-1]
-
-    if ext != "png" and ext != "jpg" and ext != "jpeg":
-        return False
-
-    return True
-
-
-def isAllowedYAML(name, size):
-    # 1MB maximum
-    if size > 1 * 1024 * 1024:
-        return False
-
-    ext = name.split(".")[-1]
-
-    if ext != "yaml" and ext != "yml":
-        return False
-
-    return True
+@app.errorhandler(AssertionError)
+def assert_err_handler(e):
+    ret_resp = {"success": False, "message": e.args[0][1]}
+    return jsonify(ret_resp), e.args[0][0]
