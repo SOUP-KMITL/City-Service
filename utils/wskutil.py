@@ -1,6 +1,8 @@
 import requests
 import os
 
+from .error import ServiceException
+
 AUTH_USER = os.environ.get("AUTH_USER", "16dd0556-0a33-43c3-94ce-213b854909b0")
 AUTH_PASS = os.environ.get("AUTH_PASS", ("S6of8Ay3Q25MzDv6e3s5Qi6e7hItL317"
                                          "M68BxkRMZrbV1ae3ij9n9YJFgVXhqj7p"))
@@ -35,9 +37,7 @@ def createPackage(pname):
             error = result.get("error", "Couldn't find error") + \
                     " => " + str(result.get("code", 0))
             print("createPackage: " + error)
-            raise Exception(httpCode, error)
-    finally:
-        return httpCode
+            raise ServiceException(httpCode, error)
 
 
 def deletePackage(pname):
@@ -60,9 +60,7 @@ def deletePackage(pname):
             error = result.get("error", "Couldn't find error") + \
                     " => " + str(result.get("code", 0))
             print("deletePackage: " + error)
-            raise Exception(httpCode, error)
-    finally:
-        return httpCode
+            raise ServiceException(httpCode, error)
 
 
 def updateAction(action, kind, code, overwrite):
@@ -97,9 +95,7 @@ def updateAction(action, kind, code, overwrite):
             error = result.get("error", "Couldn't find error") + \
                     " => " + str(result.get("code", 0))
             print("updateAction: " + error)
-            raise Exception(httpCode, error)
-    finally:
-        return httpCode
+            raise ServiceException(httpCode, error)
 
 
 def deleteAction(action):
@@ -122,13 +118,13 @@ def deleteAction(action):
             error = result.get("error", "Couldn't find error") + \
                     " => " + str(result.get("code", 0))
             print("deleteAction: " + error)
-            raise Exception(httpCode, error)
-    finally:
-        return httpCode
+            raise ServiceException(httpCode, error)
 
 
 def invokeAction(action, params):
     query = {"blocking": True, "result": True}
+    result = None
+
     try:
         resp = requests.post(
                 HOST_NS + "/actions/" + action,
@@ -151,6 +147,6 @@ def invokeAction(action, params):
             error = result.get("error", "Couldn't find error") + \
                     " => " + str(result.get("code", 0))
             print("invokeAction: " + error)
-            raise Exception(httpCode, error)
-    finally:
-        return httpCode, result
+            raise ServiceException(httpCode, error)
+
+    return result

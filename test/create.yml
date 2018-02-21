@@ -1,0 +1,131 @@
+---
+- config:
+    - testset: "Create Services Testing"
+    - variable_binds: {
+        'Kohpai_token': "2fa413b9dba81b06352224172399ec2620d2bb9cd5c68d3fc48f583e00a9d478",
+        # 'remote_ep': "https://www.google.com/",
+        # 'owner': "Kohpai",
+        }
+    - generators:
+        - 'sname': {type: "random_text", min_length: 5, max_length: 15}
+        # - 'id': {type: "number_sequence", start: 1}
+
+- test:
+    - generator_binds: {sname: sname}
+    - group: "Create City Service"
+    - name: "Create service 1"
+    - url: "/api/v1/services"
+    - method: "POST"
+    - body: {template: '{"serviceName": "$sname", "description": "PyRestTest service description"}'}
+    - headers: {template: {'Content-Type': 'application/json', 'Authorization': '$Kohpai_token'}}
+    - expected_status: [201]
+    - extract_binds:
+        - 'service_id': {'jsonpath_mini': 'serviceId'}
+
+- test:
+    - group: "Read City Service"
+    - name: "Read recently created service 1"
+    - url: {template: "/api/v1/services/$service_id"}
+    - validators:
+        - compare: {jsonpath_mini: 'serviceId', comparator: 'str_eq', expected: {template: '$service_id'}}
+        - compare: {jsonpath_mini: 'serviceName', comparator: 'str_eq', expected: {template: '$sname'}}
+
+- test:
+    - generator_binds: {sname: sname}
+    - group: "Create City Service"
+    - name: "Create service 2"
+    - url: "/api/v1/services"
+    - method: "POST"
+    - body: {template: '{"serviceName": "$sname", "description": "PyRestTest service description"}'}
+    - headers: {template: {'Content-Type': 'application/json', 'Authorization': '$Kohpai_token'}}
+    - expected_status: [201]
+    - extract_binds:
+        - 'service_id': {'jsonpath_mini': 'serviceId'}
+
+- test:
+    - group: "Read City Service"
+    - name: "Read recently created service 2"
+    - url: {template: "/api/v1/services/$service_id"}
+    - validators:
+        - compare: {jsonpath_mini: 'serviceId', comparator: 'str_eq', expected: {template: '$service_id'}}
+        - compare: {jsonpath_mini: 'serviceName', comparator: 'str_eq', expected: {template: '$sname'}}
+
+- test:
+    - generator_binds: {sname: sname}
+    - group: "Create City Service"
+    - name: "Create service 3"
+    - url: "/api/v1/services"
+    - method: "POST"
+    - body: {template: '{"serviceName": "$sname", "description": "PyRestTest service description"}'}
+    - headers: {template: {'Content-Type': 'application/json', 'Authorization': '$Kohpai_token'}}
+    - expected_status: [201]
+    - extract_binds:
+        - 'service_id': {'jsonpath_mini': 'serviceId'}
+
+- test:
+    - group: "Read City Service"
+    - name: "Read recently created service 3"
+    - url: {template: "/api/v1/services/$service_id"}
+    - validators:
+        - compare: {jsonpath_mini: 'serviceId', comparator: 'str_eq', expected: {template: '$service_id'}}
+        - compare: {jsonpath_mini: 'serviceName', comparator: 'str_eq', expected: {template: '$sname'}}
+
+- test:
+    - generator_binds: {sname: sname}
+    - group: "Create City Service"
+    - name: "Create service 4"
+    - url: "/api/v1/services"
+    - method: "POST"
+    - body: {template: '{"serviceName": "$sname", "description": "PyRestTest service description"}'}
+    - headers: {template: {'Content-Type': 'application/json', 'Authorization': '$Kohpai_token'}}
+    - expected_status: [201]
+    - extract_binds:
+        - 'service_id': {'jsonpath_mini': 'serviceId'}
+
+- test:
+    - group: "Read City Service"
+    - name: "Read recently created service 4"
+    - url: {template: "/api/v1/services/$service_id"}
+    - validators:
+        - compare: {jsonpath_mini: 'serviceId', comparator: 'str_eq', expected: {template: '$service_id'}}
+        - compare: {jsonpath_mini: 'serviceName', comparator: 'str_eq', expected: {template: '$sname'}}
+
+- test:
+    - generator_binds: {sname: sname}
+    - group: "Create City Service"
+    - name: "Create service 5"
+    - url: "/api/v1/services"
+    - method: "POST"
+    - body: {template: '{"serviceName": "$sname", "description": "PyRestTest service description"}'}
+    - headers: {template: {'Content-Type': 'application/json', 'Authorization': '$Kohpai_token'}}
+    - expected_status: [201]
+    - extract_binds:
+        - 'service_id': {'jsonpath_mini': 'serviceId'}
+
+- test:
+    - group: "Read City Service"
+    - name: "Read recently created service 5"
+    - url: {template: "/api/v1/services/$service_id"}
+    - validators:
+        - compare: {jsonpath_mini: 'serviceId', comparator: 'str_eq', expected: {template: '$service_id'}}
+        - compare: {jsonpath_mini: 'serviceName', comparator: 'str_eq', expected: {template: '$sname'}}
+
+- test:
+    - generator_binds: {sname: sname}
+    - group: "Create City Service"
+    - name: "Create service 6"
+    - url: "/api/v1/services"
+    - method: "POST"
+    - body: {template: '{"serviceName": "$sname", "description": "PyRestTest service description"}'}
+    - headers: {template: {'Content-Type': 'application/json', 'Authorization': '$Kohpai_token'}}
+    - expected_status: [201]
+    - extract_binds:
+        - 'service_id': {'jsonpath_mini': 'serviceId'}
+
+- test:
+    - group: "Read City Service"
+    - name: "Read recently created service 6"
+    - url: {template: "/api/v1/services/$service_id"}
+    - validators:
+        - compare: {jsonpath_mini: 'serviceId', comparator: 'str_eq', expected: {template: '$service_id'}}
+        - compare: {jsonpath_mini: 'serviceName', comparator: 'str_eq', expected: {template: '$sname'}}
