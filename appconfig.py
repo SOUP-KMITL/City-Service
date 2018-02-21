@@ -16,11 +16,12 @@ API_VER = 1
 EXT_API_PORT = 443
 INT_API_PORT = 80
 
-SSH_HOST = "cityservice.smartcity.kmitl.io"
-SSH_USER = "ubuntu"
-SSH_PRIV = "./cityservice_key"
-
 TEMPLATE = "./template.js"
+AUTH_HEAD = "Authorization"
+TYPE_HEAD = "Content-Type"
+SUCCESS = "success"
+MESSAGE = "message"
+FILE = "file"
 
 if env == "PROD":
     #  Production (public server) configuration
