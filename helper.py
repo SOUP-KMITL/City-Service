@@ -3,10 +3,12 @@ import pymongo
 ***REMOVED***
 import uuid
 import time
+import math
 
 # Custom modules and packages
 from utils.template.service import Service
 from utils.error import ServiceException
+from utils.template.page import Page
 from utils import wskutil
 import appconfig
 
@@ -212,3 +214,29 @@ def bin_to_url(cursors):
                 "/services/" + service_id + "/swagger"
 
     return cursors
+
+
+def get_page(services, page=0, size=20):
+    total_elems = services.count()
+    total_pages = math.ceil(total_elems / size)
+
+    services = services.skip(page * size) \
+        .limit(size) \
+        .sort(Service.Field.created_at, pymongo.DESCENDING)
+
+    num_elems = services.count(with_limit_and_skip=True)
+    services = bin_to_url(services)
+
+    page = {
+        Page.Field.content: services,
+        Page.Field.first: True if page == 0 else False,
+        Page.Field.last: True if page >= total_pages - 1 else False,
+        Page.Field.sort: None,
+        Page.Field.size: size,
+        Page.Field.total_pages: total_pages,
+        Page.Field.total_elems: total_elems,
+        Page.Field.num_elems: num_elems,
+        Page.Field.curr_page: page,
+    }
+
+    return page
