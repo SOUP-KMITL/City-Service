@@ -23,6 +23,10 @@ SUCCESS = "success"
 MESSAGE = "message"
 FILE = "file"
 
+EXT_API_GATEWAY = "https://api.smartcity.kmitl.io:" + \
+    str(EXT_API_PORT) + "/api/v1"
+#  EXT_API_GATEWAY = "https://203.154.59.55:" + str(EXT_API_PORT) + "/api/v1"
+
 if env == "PROD":
     #  Production (public server) configuration
     API_PREFIX     = "/services"
@@ -32,8 +36,6 @@ if env == "PROD":
     METER_API      = "http://meter-service:" + str(INT_API_PORT)
 else:
     #  Development (local) configuration
-    EXT_API_GATEWAY = "https://api.smartcity.kmitl.io:" + str(EXT_API_PORT) + "/api/v1"
-    #  EXT_API_GATEWAY = "https://203.154.59.55:" + str(EXT_API_PORT) + "/api/v1"
     API_PREFIX     = "/api/v" + str(API_VER) + "/services"
     COLLECTION_API = EXT_API_GATEWAY + "/collections"
     USER_API       = EXT_API_GATEWAY + "/users"
