@@ -36,8 +36,6 @@ def createPackage(pname):
                     " => " + str(result.get("code", 0))
             print("createPackage: " + error)
             raise Exception(httpCode, error)
-    finally:
-        return httpCode
 
 
 def deletePackage(pname):
@@ -61,8 +59,6 @@ def deletePackage(pname):
                     " => " + str(result.get("code", 0))
             print("deletePackage: " + error)
             raise Exception(httpCode, error)
-    finally:
-        return httpCode
 
 
 def updateAction(action, kind, code, overwrite):
@@ -98,8 +94,6 @@ def updateAction(action, kind, code, overwrite):
                     " => " + str(result.get("code", 0))
             print("updateAction: " + error)
             raise Exception(httpCode, error)
-    finally:
-        return httpCode
 
 
 def deleteAction(action):
@@ -123,12 +117,12 @@ def deleteAction(action):
                     " => " + str(result.get("code", 0))
             print("deleteAction: " + error)
             raise Exception(httpCode, error)
-    finally:
-        return httpCode
 
 
 def invokeAction(action, params):
     query = {"blocking": True, "result": True}
+    result = None
+
     try:
         resp = requests.post(
                 HOST_NS + "/actions/" + action,
@@ -152,5 +146,5 @@ def invokeAction(action, params):
                     " => " + str(result.get("code", 0))
             print("invokeAction: " + error)
             raise Exception(httpCode, error)
-    finally:
-        return httpCode, result
+
+    return result

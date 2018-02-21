@@ -7,10 +7,11 @@ name = "pypi"
 
 [packages]
 
-Flask = "*"
+flask = "*"
 requests = "*"
-Flask-PyMongo = "*"
+flask-pymongo = "*"
 gunicorn = "*"
+pyresttest = "*"
 
 
 [dev-packages]
