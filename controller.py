@@ -299,7 +299,7 @@ def invoke_service(service_id, custom_path=""):
     action = helper.get_action(
         service.get(Service.Field.owner, ""),
         service.get(Service.Field.service_name, ""))
-    http_code, body = wskutil.invoke_action(action, params)
+    http_code, result = wskutil.invoke_action(action, params)
 
     return make_response((jsonify(result), http_code))
 
