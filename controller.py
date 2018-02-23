@@ -132,8 +132,8 @@ def delete_service(service_id):
         service.get(Service.Field.service_name, ""))
 
     try:
-        wskutil.deleteAction(action)
-        wskutil.deletePackage(username)
+        wskutil.delete_action(action)
+        wskutil.delete_package(username)
     except ServiceException as e:
         if e.http_code != 409:
             raise
@@ -178,7 +178,7 @@ def patch_service(service_id):
 
     if chcode:
         code = base64.b64decode(code).decode()
-        wskutil.updateAction(action, kind, code, True)
+        wskutil.update_action(action, kind, code, True)
 
     ret_resp[SUCCESS] = True
     ret_resp[MESSAGE] = "Service " + service_id + \
@@ -275,29 +275,33 @@ def download_swagger(service_id):
     return resp
 
 
-#  @app.route(API_PREFIX + "/<serviceId>/activations",
-#  methods=["POST"])
-#  def invokeService(serviceId):
-#      ret_resp = {"success": False, "message": ""}
-#      params = None
+def invoke_service(service_id, custom_path=""):
+    service = mongo.db.service.find_one(
+        {Service.Field.service_id: service_id},
+        {Service.Field.id: False})
 
-#      if request.is_json:
-#          params = request.get_json()
+    assert service is not None, (404, "Couldn't find serviceId " + service_id)
 
-#      service = mongo.db.service.find_one(
-#          {"serviceId": serviceId},
-#          {"_id": False})
+    endpoint = service.get(Service.Field.endpoint, "")
 
-#      if service is None:
-#          ret_resp["message"] = "Couldn't find serviceId " + serviceId
-#          return jsonify(ret_resp), 404
+    if endpoint:
+        http_code, result = helper.redirect_request(
+            request,
+            endpoint,
+            custom_path)
+        return make_response((jsonify(result), http_code))
 
-#      username, serviceName, action = getAction(service)
+    params = None
 
-#      http_code, data = wskutil.invokeAction(action, params)
-#      ret_resp = data
+    if request.is_json:
+        params = request.get_json()
 
-#      return jsonify(ret_resp), 200
+    action = helper.get_action(
+        service.get(Service.Field.owner, ""),
+        service.get(Service.Field.service_name, ""))
+    http_code, headers, body = wskutil.invoke_action(action, params)
+
+    return make_response((jsonify(result), http_code))
 
 
 #  @app.route(API_PREFIX + "/<serviceId>/data")
@@ -313,7 +317,7 @@ def download_swagger(service_id):
 
 #      username, serviceName, action = getAction(service)
 
-#      http_code, data = wskutil.invokeAction(action, None)
+#      http_code, data = wskutil.invoke_action(action, None)
 #      ret_resp = data
 
 #      return jsonify(ret_resp), 200

@@ -11,7 +11,7 @@ HOST_NS = HOST + "/namespaces/_"
 HEADERS = {"Content-Type": "application/json"}
 
 
-def createPackage(pname):
+def create_package(pname):
     data = {"namespace": "_", "name": pname}
     query = {"overwrite": False}
 
@@ -23,47 +23,47 @@ def createPackage(pname):
                 params=query,
                 headers=HEADERS)
 
-        httpCode = resp.status_code
+        http_code = resp.status_code
         result = resp.json()
 
     except requests.ConnectionError:
-        print("createPackage: couldn't connect to external service")
+        print("create_package: couldn't connect to external service")
         raise
     except requests.ConnectTimeout:
-        print("createPackage: connection to external service timeout")
+        print("create_package: connection to external service timeout")
         raise
     else:
-        if httpCode != 200:
+        if http_code != 200:
             error = result.get("error", "Couldn't find error") + \
                     " => " + str(result.get("code", 0))
-            print("createPackage: " + error)
-            raise ServiceException(httpCode, error)
+            print("create_package: " + error)
+            raise ServiceException(http_code, error)
 
 
-def deletePackage(pname):
+def delete_package(pname):
     try:
         resp = requests.delete(
                 HOST_NS + "/packages/" + pname,
                 auth=(AUTH_USER, AUTH_PASS))
 
-        httpCode = resp.status_code
+        http_code = resp.status_code
         result = resp.json()
 
     except requests.ConnectionError:
-        print("deletePackage: couldn't connect to external service")
+        print("delete_package: couldn't connect to external service")
         raise
     except requests.ConnectTimeout:
-        print("deletePackage: connection to external service timeout")
+        print("delete_package: connection to external service timeout")
         raise
     else:
-        if httpCode != 200:
+        if http_code != 200:
             error = result.get("error", "Couldn't find error") + \
                     " => " + str(result.get("code", 0))
-            print("deletePackage: " + error)
-            raise ServiceException(httpCode, error)
+            print("delete_package: " + error)
+            raise ServiceException(http_code, error)
 
 
-def updateAction(action, kind, code, overwrite):
+def update_action(action, kind, code, overwrite):
     data = {
             "namespace": "_",
             "name": action,
@@ -81,49 +81,48 @@ def updateAction(action, kind, code, overwrite):
                 params=query,
                 headers=HEADERS)
 
-        httpCode = resp.status_code
+        http_code = resp.status_code
         result = resp.json()
 
     except requests.ConnectionError:
-        print("updateAction: couldn't connect to external service")
+        print("update_action: couldn't connect to external service")
         raise
     except requests.ConnectTimeout:
-        print("updateAction: connection to external service timeout")
+        print("update_action: connection to external service timeout")
         raise
     else:
-        if httpCode != 200:
+        if http_code != 200:
             error = result.get("error", "Couldn't find error") + \
                     " => " + str(result.get("code", 0))
-            print("updateAction: " + error)
-            raise ServiceException(httpCode, error)
+            print("update_action: " + error)
+            raise ServiceException(http_code, error)
 
 
-def deleteAction(action):
+def delete_action(action):
     try:
         resp = requests.delete(
                 HOST_NS + "/actions/" + action,
                 auth=(AUTH_USER, AUTH_PASS))
 
-        httpCode = resp.status_code
+        http_code = resp.status_code
         result = resp.json()
 
     except requests.ConnectionError:
-        print("deleteAction: couldn't connect to external service")
+        print("delete_action: couldn't connect to external service")
         raise
     except requests.ConnectTimeout:
-        print("deleteAction: connection to external service timeout")
+        print("delete_action: connection to external service timeout")
         raise
     else:
-        if httpCode != 200:
+        if http_code != 200:
             error = result.get("error", "Couldn't find error") + \
                     " => " + str(result.get("code", 0))
-            print("deleteAction: " + error)
-            raise ServiceException(httpCode, error)
+            print("delete_action: " + error)
+            raise ServiceException(http_code, error)
 
 
-def invokeAction(action, params):
+def invoke_action(action, params):
     query = {"blocking": True, "result": True}
-    result = None
 
     try:
         resp = requests.post(
@@ -133,20 +132,11 @@ def invokeAction(action, params):
                 params=query,
                 headers=HEADERS)
 
-        httpCode = resp.status_code
-        result = resp.json()
-
     except requests.ConnectionError:
-        print("invokeAction: couldn't connect to external service")
+        print("invoke_action: couldn't connect to external service")
         raise
     except requests.ConnectTimeout:
-        print("invokeAction: connection to external service timeout")
+        print("invoke_action: connection to external service timeout")
         raise
     else:
-        if httpCode != 200:
-            error = result.get("error", "Couldn't find error") + \
-                    " => " + str(result.get("code", 0))
-            print("invokeAction: " + error)
-            raise ServiceException(httpCode, error)
-
-    return result
+        return resp.status_code, resp.json()
