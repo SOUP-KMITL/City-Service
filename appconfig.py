@@ -17,15 +17,11 @@ EXT_API_PORT = 443
 INT_API_PORT = 80
 
 TEMPLATE = "./template.js"
-AUTH_HEAD = "Authorization"
-TYPE_HEAD = "Content-Type"
-SUCCESS = "success"
-MESSAGE = "message"
-FILE = "file"
 
 EXT_API_GATEWAY = "https://api.smartcity.kmitl.io:" + \
     str(EXT_API_PORT) + "/api/v1"
 #  EXT_API_GATEWAY = "https://203.154.59.55:" + str(EXT_API_PORT) + "/api/v1"
+#  EXT_API_GATEWAY = "https://kohpai.com:" + str(EXT_API_PORT) + "/api/v1"
 
 if env == "PROD":
     #  Production (public server) configuration

@@ -1,25 +1,38 @@
-from flask import Flask, request, jsonify, make_response
+from flask import request, jsonify, make_response
 from flask_pymongo import PyMongo
-import pymongo
 ***REMOVED***
 import base64
 import binascii
 
 # Custom modules and packages
 from utils import wskutil
+from utils.error import ServiceException
 from utils.template.service import Service
 from utils.template.user import User
-from utils.error import ServiceException
 import helper
-import appconfig
 
-app = Flask(__name__)
-app.config.from_object("appconfig.DefaultConfig")
-mongo = PyMongo(app)
-helper.set_mongo_instance(mongo)
+# Constant variables
+AUTH_HEAD = "Authorization"
+TYPE_HEAD = "Content-Type"
+SUCCESS = "success"
+MESSAGE = "message"
+FILE = "file"
+
+mongo = None
 
 
-@app.route(appconfig.API_PREFIX, strict_slashes=False)
+def set_flask_instance(f):
+    global mongo
+
+    mongo = PyMongo(f)
+    helper.set_mongo_instance(mongo)
+    f.register_error_handler(requests.ConnectionError, direct_err)
+    f.register_error_handler(requests.ConnectTimeout, direct_err)
+    f.register_error_handler(ServiceException, custom_err_handler)
+    f.register_error_handler(binascii.Error, base64_err_handler)
+    f.register_error_handler(AssertionError, assert_err_handler)
+
+
 def get_services():
     services = None
     args = request.args
@@ -44,16 +57,15 @@ def get_services():
     return jsonify(page), 200
 
 
-@app.route(appconfig.API_PREFIX, strict_slashes=False, methods=["POST"])
 def create_service():
-    ret_resp = {appconfig.SUCCESS: False, appconfig.MESSAGE: ""}
+    ret_resp = {SUCCESS: False, MESSAGE: ""}
     valid_keys = [
         Service.Field.service_name,
         Service.Field.owner,
         Service.Field.description,
     ]
     required_keys = valid_keys[:-1]
-    token = request.headers.get(appconfig.AUTH_HEAD, None)
+    token = request.headers.get(AUTH_HEAD, None)
     user = helper.get_user_by_token(token)
 
     helper.assert_user(user)
@@ -72,8 +84,8 @@ def create_service():
 
     helper.init_action(action)
 
-    ret_resp[appconfig.SUCCESS] = True
-    ret_resp[appconfig.MESSAGE] = "Service " + action + \
+    ret_resp[SUCCESS] = True
+    ret_resp[MESSAGE] = "Service " + action + \
         " is successfully created."
     ret_resp[Service.Field.service_id] = \
         service.get(Service.Field.service_id, "")
@@ -81,9 +93,8 @@ def create_service():
     return jsonify(ret_resp), 201
 
 
-@app.route(appconfig.API_PREFIX + "/<service_id>", strict_slashes=False)
 def get_service(service_id):
-    ret_resp = {appconfig.SUCCESS: False, appconfig.MESSAGE: ""}
+    ret_resp = {SUCCESS: False, MESSAGE: ""}
 
     service = mongo.db.service.find_one(
         {Service.Field.service_id: service_id},
@@ -94,19 +105,15 @@ def get_service(service_id):
         })
 
     if service is None:
-        ret_resp[appconfig.MESSAGE] = "Couldn't find service " + service_id
+        ret_resp[MESSAGE] = "Couldn't find service " + service_id
         return jsonify(ret_resp), 404
 
     return jsonify(service), 200
 
 
-@app.route(
-    appconfig.API_PREFIX + "/<service_id>",
-    strict_slashes=False,
-    methods=["DELETE"])
 def delete_service(service_id):
-    ret_resp = {appconfig.SUCCESS: False, appconfig.MESSAGE: ""}
-    token = request.headers.get(appconfig.AUTH_HEAD, None)
+    ret_resp = {SUCCESS: False, MESSAGE: ""}
+    token = request.headers.get(AUTH_HEAD, None)
     user = helper.get_user_by_token(token)
 
     helper.assert_user(user)
@@ -131,19 +138,15 @@ def delete_service(service_id):
         if e.http_code != 409:
     ***REMOVED***
 
-    ret_resp[appconfig.SUCCESS] = True
-    ret_resp[appconfig.MESSAGE] = "Service " + service_id + \
+    ret_resp[SUCCESS] = True
+    ret_resp[MESSAGE] = "Service " + service_id + \
         " is successfully deleted"
 
     return jsonify(ret_resp), 200
 
 
-@app.route(
-    appconfig.API_PREFIX + "/<service_id>",
-    strict_slashes=False,
-    methods=["PATCH"])
 def patch_service(service_id):
-    ret_resp = {appconfig.SUCCESS: False, appconfig.MESSAGE: ""}
+    ret_resp = {SUCCESS: False, MESSAGE: ""}
     validKeys = [
         Service.Field.description, Service.Field.endpoint,
         Service.Field.sameple_data, Service.Field.app_link,
@@ -151,7 +154,7 @@ def patch_service(service_id):
         ##################################
         Service.Field.code, Service.Field.kind,
     ]
-    token = request.headers.get(appconfig.AUTH_HEAD, None)
+    token = request.headers.get(AUTH_HEAD, None)
     user = helper.get_user_by_token(token)
 
     helper.assert_user(user)
@@ -177,25 +180,21 @@ def patch_service(service_id):
         code = base64.b64decode(code).decode()
         wskutil.updateAction(action, kind, code, True)
 
-    ret_resp[appconfig.SUCCESS] = True
-    ret_resp[appconfig.MESSAGE] = "Service " + service_id + \
+    ret_resp[SUCCESS] = True
+    ret_resp[MESSAGE] = "Service " + service_id + \
         " is successfully updated"
 
     return jsonify(ret_resp), 200
 
 
-@app.route(
-    appconfig.API_PREFIX + "/<service_id>/thumbnail",
-    strict_slashes=False,
-    methods=["PUT"])
 def upload_thumbnail(service_id):
-    ret_resp = {appconfig.SUCCESS: False, appconfig.MESSAGE: ""}
-    token = request.headers.get(appconfig.AUTH_HEAD, None)
+    ret_resp = {SUCCESS: False, MESSAGE: ""}
+    token = request.headers.get(AUTH_HEAD, None)
     user = helper.get_user_by_token(token)
 
     helper.assert_user(user)
 
-    f = request.files.get(appconfig.FILE, None)
+    f = request.files.get(FILE, None)
 
     helper.assert_file(f)
 
@@ -210,15 +209,12 @@ def upload_thumbnail(service_id):
 
     helper.assert_service_and_owner(service)
 
-    ret_resp[appconfig.SUCCESS] = "Thumbnail is uploaded successful"
-    ret_resp[appconfig.MESSAGE] = True
+    ret_resp[SUCCESS] = "Thumbnail is uploaded successful"
+    ret_resp[MESSAGE] = True
 
     return jsonify(ret_resp), 200
 
 
-@app.route(
-    appconfig.API_PREFIX + "/<service_id>/thumbnail",
-    strict_slashes=False)
 def download_thumbnail(service_id):
     thumbnail = mongo.db.service.find_one(
         {Service.Field.service_id: service_id},
@@ -228,24 +224,20 @@ def download_thumbnail(service_id):
     assert thumbnail is not None, (404, "No thumbnail file found")
 
     resp = make_response(thumbnail)
-    resp.headers[appconfig.TYPE_HEAD] = "image/png"
+    resp.headers[TYPE_HEAD] = "image/png"
     resp.status_code = 200
 
     return resp
 
 
-@app.route(
-    appconfig.API_PREFIX + "/<service_id>/swagger",
-    strict_slashes=False,
-    methods=["PUT"])
 def upload_swagger(service_id):
-    ret_resp = {appconfig.SUCCESS: False, appconfig.MESSAGE: ""}
-    token = request.headers.get(appconfig.AUTH_HEAD, None)
+    ret_resp = {SUCCESS: False, MESSAGE: ""}
+    token = request.headers.get(AUTH_HEAD, None)
     user = helper.get_user_by_token(token)
 
     helper.assert_user(user)
 
-    f = request.files.get(appconfig.FILE, None)
+    f = request.files.get(FILE, None)
 
     helper.assert_file(f)
 
@@ -260,15 +252,12 @@ def upload_swagger(service_id):
 
     helper.assert_service_and_owner(service)
 
-    ret_resp[appconfig.SUCCESS] = True
-    ret_resp[appconfig.MESSAGE] = "File is uploaded successful"
+    ret_resp[SUCCESS] = True
+    ret_resp[MESSAGE] = "File is uploaded successful"
 
     return jsonify(ret_resp), 200
 
 
-@app.route(
-    appconfig.API_PREFIX + "/<service_id>/swagger",
-    strict_slashes=False)
 def download_swagger(service_id):
     swagger = mongo.db.service.find_one(
         {Service.Field.service_id: service_id},
@@ -280,13 +269,13 @@ def download_swagger(service_id):
     assert swagger is not None, (404, "No swagger file found")
 
     resp = make_response(swagger)
-    resp.headers[appconfig.TYPE_HEAD] = "text/plain"
+    resp.headers[TYPE_HEAD] = "text/plain"
     resp.status_code = 200
 
     return resp
 
 
-#  @app.route(appconfig.API_PREFIX + "/<serviceId>/activations",
+#  @app.route(API_PREFIX + "/<serviceId>/activations",
 #  methods=["POST"])
 #  def invokeService(serviceId):
 #      ret_resp = {"success": False, "message": ""}
@@ -311,7 +300,7 @@ def download_swagger(service_id):
 #      return jsonify(ret_resp), 200
 
 
-#  @app.route(appconfig.API_PREFIX + "/<serviceId>/data")
+#  @app.route(API_PREFIX + "/<serviceId>/data")
 #  def getDataService(serviceId):
 #      ret_resp = {"success": False, "message": ""}
 #      service = mongo.db.service.find_one(
@@ -330,29 +319,21 @@ def download_swagger(service_id):
 #      return jsonify(ret_resp), 200
 
 
-@app.errorhandler(requests.ConnectionError)
-def conn_err_handler(e):
-    return jsonify(helper.direct_err(e)), 500
+def direct_err(e):
+    ret_resp = {"success": False, "message": e.__str__()}
+    return jsonify(ret_resp), 500
 
 
-@app.errorhandler(requests.ConnectTimeout)
-def timeout_err_handler(e):
-    return jsonify(helper.direct_err(e)), 500
-
-
-@app.errorhandler(ServiceException)
 def custom_err_handler(e):
     ret_resp = {"success": False, "message": e.message}
     return jsonify(ret_resp), e.http_code
 
 
-@app.errorhandler(binascii.Error)
 def base64_err_handler(e):
     ret_resp = {"success": False, "message": "Invalid base64 encoded message"}
     return jsonify(ret_resp), 400
 
 
-@app.errorhandler(AssertionError)
 def assert_err_handler(e):
     ret_resp = {"success": False, "message": e.args[0][1]}
     return jsonify(ret_resp), e.args[0][0]
