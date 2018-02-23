@@ -20,11 +20,6 @@ def set_mongo_instance(m):
     mongo = m
 
 
-def direct_err(e):
-    ret_resp = {"success": False, "message": e.__str__()}
-    return ret_resp
-
-
 def update_service(service_id, u, d):
     service = None
 
