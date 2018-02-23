@@ -154,8 +154,8 @@ def init_action(action):
     for i in range(2):
     ***REMOVED***
             if i == 1:
-                wskutil.createPackage(username)
-            wskutil.updateAction(action, "nodejs:6", code, False)
+                wskutil.create_package(username)
+            wskutil.update_action(action, "nodejs:6", code, False)
             break
         except ServiceException as e:
             if i == 1 or e.http_code != 404:
@@ -235,3 +235,41 @@ def get_page(services, page=0, size=20):
     }
 
     return page
+
+
+def redirect_request(req, ep, path=""):
+    url = ep + "/" + path
+    method = req.method
+    result = None
+
+***REMOVED***
+        if method == "GET":
+            resp = requests.get(url, params=req.args)
+        elif method == "POST" or method == "POST" or method == "PATCH":
+    ***REMOVED***
+                url,
+                data=req.data,
+                params=req.args,
+                headers=req.headers)
+        elif method == "DELETE":
+    ***REMOVED***url, params=req.args, headers=req.headers)
+    ***REMOVED***
+            print("redirect_request: Unsupported HTTP method")
+    ***REMOVED*** ServiceException(400, "Unsupported HTTP method")
+
+***REMOVED***
+        print("redirect_request: couldn't connect to external service")
+***REMOVED***
+***REMOVED***
+        print("redirect_request: connection to external service timeout")
+***REMOVED***
+***REMOVED***
+    ***REMOVED***
+    ***REMOVED***
+        except ValueError:
+    ***REMOVED*** ServiceException(
+                500,
+                ("The remote endpoint of this service "
+                 "didn't return a valid JSON packet."))
+
+        return resp.status_code, result

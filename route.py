@@ -56,3 +56,15 @@ app.add_url_rule(
     appconfig.API_PREFIX + "/<service_id>/swagger",
     view_func=controller.download_swagger,
     strict_slashes=False)
+
+app.add_url_rule(
+    appconfig.API_PREFIX + "/<service_id>/activations",
+    view_func=controller.invoke_service,
+    strict_slashes=False,
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
+
+app.add_url_rule(
+    appconfig.API_PREFIX + "/<service_id>/activations/<path:custom_path>",
+    view_func=controller.invoke_service,
+    strict_slashes=False,
+    methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
