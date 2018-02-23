@@ -19,7 +19,7 @@ mongo = PyMongo(app)
 helper.set_mongo_instance(mongo)
 
 
-@app.route(appconfig.API_PREFIX)
+@app.route(appconfig.API_PREFIX, strict_slashes=False)
 def get_services():
     services = None
     args = request.args
@@ -44,7 +44,7 @@ def get_services():
     return jsonify(page), 200
 
 
-@app.route(appconfig.API_PREFIX, methods=["POST"])
+@app.route(appconfig.API_PREFIX, strict_slashes=False, methods=["POST"])
 def create_service():
     ret_resp = {appconfig.SUCCESS: False, appconfig.MESSAGE: ""}
     valid_keys = [
@@ -81,7 +81,7 @@ def create_service():
     return jsonify(ret_resp), 201
 
 
-@app.route(appconfig.API_PREFIX + "/<service_id>")
+@app.route(appconfig.API_PREFIX + "/<service_id>", strict_slashes=False)
 def get_service(service_id):
     ret_resp = {appconfig.SUCCESS: False, appconfig.MESSAGE: ""}
 
@@ -100,7 +100,10 @@ def get_service(service_id):
     return jsonify(service), 200
 
 
-@app.route(appconfig.API_PREFIX + "/<service_id>", methods=["DELETE"])
+@app.route(
+    appconfig.API_PREFIX + "/<service_id>",
+    strict_slashes=False,
+    methods=["DELETE"])
 def delete_service(service_id):
     ret_resp = {appconfig.SUCCESS: False, appconfig.MESSAGE: ""}
     token = request.headers.get(appconfig.AUTH_HEAD, None)
@@ -135,7 +138,10 @@ def delete_service(service_id):
     return jsonify(ret_resp), 200
 
 
-@app.route(appconfig.API_PREFIX + "/<service_id>", methods=["PATCH"])
+@app.route(
+    appconfig.API_PREFIX + "/<service_id>",
+    strict_slashes=False,
+    methods=["PATCH"])
 def patch_service(service_id):
     ret_resp = {appconfig.SUCCESS: False, appconfig.MESSAGE: ""}
     validKeys = [
@@ -178,7 +184,10 @@ def patch_service(service_id):
     return jsonify(ret_resp), 200
 
 
-@app.route(appconfig.API_PREFIX + "/<service_id>/thumbnail", methods=["PUT"])
+@app.route(
+    appconfig.API_PREFIX + "/<service_id>/thumbnail",
+    strict_slashes=False,
+    methods=["PUT"])
 def upload_thumbnail(service_id):
     ret_resp = {appconfig.SUCCESS: False, appconfig.MESSAGE: ""}
     token = request.headers.get(appconfig.AUTH_HEAD, None)
@@ -207,7 +216,9 @@ def upload_thumbnail(service_id):
     return jsonify(ret_resp), 200
 
 
-@app.route(appconfig.API_PREFIX + "/<service_id>/thumbnail")
+@app.route(
+    appconfig.API_PREFIX + "/<service_id>/thumbnail",
+    strict_slashes=False)
 def download_thumbnail(service_id):
     thumbnail = mongo.db.service.find_one(
         {Service.Field.service_id: service_id},
@@ -223,7 +234,10 @@ def download_thumbnail(service_id):
     return resp
 
 
-@app.route(appconfig.API_PREFIX + "/<service_id>/swagger", methods=["PUT"])
+@app.route(
+    appconfig.API_PREFIX + "/<service_id>/swagger",
+    strict_slashes=False,
+    methods=["PUT"])
 def upload_swagger(service_id):
     ret_resp = {appconfig.SUCCESS: False, appconfig.MESSAGE: ""}
     token = request.headers.get(appconfig.AUTH_HEAD, None)
@@ -252,7 +266,9 @@ def upload_swagger(service_id):
     return jsonify(ret_resp), 200
 
 
-@app.route(appconfig.API_PREFIX + "/<service_id>/swagger")
+@app.route(
+    appconfig.API_PREFIX + "/<service_id>/swagger",
+    strict_slashes=False)
 def download_swagger(service_id):
     swagger = mongo.db.service.find_one(
         {Service.Field.service_id: service_id},
