@@ -304,25 +304,6 @@ def invoke_service(service_id, custom_path=""):
     return make_response((jsonify(result), http_code))
 
 
-#  @app.route(API_PREFIX + "/<serviceId>/data")
-#  def getDataService(serviceId):
-#      ret_resp = {"success": False, "message": ""}
-#      service = mongo.db.service.find_one(
-#          {"serviceId": serviceId},
-#          {"_id": False})
-
-#      if service is None:
-#          ret_resp["message"] = "Couldn't find serviceId " + serviceId
-#          return jsonify(ret_resp), 404
-
-#      username, serviceName, action = getAction(service)
-
-#      http_code, data = wskutil.invoke_action(action, None)
-#      ret_resp = data
-
-#      return jsonify(ret_resp), 200
-
-
 def direct_err(e):
     ret_resp = {"success": False, "message": e.__str__()}
     return jsonify(ret_resp), 500
