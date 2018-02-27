@@ -100,9 +100,7 @@ def get_service(service_id):
     token = request.headers.get(AUTH_HEAD, None)
     user = helper.get_user_by_token(token)
 
-    service = helper.find_service(
-        {Service.Field.service_id: service_id},
-        {Service.Field.id: False})
+    service = helper.find_service(service_id, {Service.Field.id: False})
 
     if user is None or (user.get(User.Field.username, "") !=
                         service.get(Service.Field.owner, "")):
@@ -220,7 +218,7 @@ def upload_thumbnail(service_id):
 
 def download_thumbnail(service_id):
     service = helper.find_service(
-        {Service.Field.service_id: service_id},
+        service_id,
         {Service.Field.id: False, Service.Field.thumbnail: True})
     thumbnail = service.get(Service.Field.thumbnail, None)
 
@@ -263,7 +261,7 @@ def upload_swagger(service_id):
 
 def download_swagger(service_id):
     service = helper.find_service(
-        {Service.Field.service_id: service_id},
+        service_id,
         {Service.Field.id: False, Service.Field.swagger: True})
     swagger = service.get(Service.Field.swagger, None)
 
@@ -277,9 +275,7 @@ def download_swagger(service_id):
 
 
 def invoke_service(service_id, custom_path=""):
-    service = helper.find_service(
-        {Service.Field.service_id: service_id},
-        {Service.Field.id: False})
+    service = helper.find_service(service_id, {Service.Field.id: False})
     endpoint = service.get(Service.Field.endpoint, "")
 
     if endpoint:

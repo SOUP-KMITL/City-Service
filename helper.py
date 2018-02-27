@@ -279,8 +279,10 @@ def redirect_request(req, ep, path=""):
         return resp.status_code, result
 
 
-def find_service(query, projection):
-    service = mongo.db.service.find_one(query, projection=projection)
+def find_service(service_id, projection):
+    service = mongo.db.service.find_one(
+        {Service.Field.service_id: service_id},
+        projection=projection)
 
     assert service is not None, (404, "Couldn't find service " + service_id)
 
