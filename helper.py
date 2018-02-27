@@ -6,9 +6,10 @@ import time
 import math
 
 # Custom modules and packages
-from utils.template.service import Service
+from utils.template import Service
+from utils.template import User
+from utils.template import Page
 from utils.error import ServiceException
-from utils.template.page import Page
 from utils import wskutil
 import appconfig
 
@@ -208,7 +209,7 @@ def bin_to_url(cursor):
     return cursor
 
 
-def get_page(services, page=0, size=20):
+def get_page(services, page=0, size=20, user=None):
     results = list()
     total_elems = services.count()
     total_pages = math.ceil(total_elems / size)
@@ -220,6 +221,9 @@ def get_page(services, page=0, size=20):
     num_elems = services.count(with_limit_and_skip=True)
 
     for service in services:
+        if user is None or (user.get(User.Field.username, "") !=
+                            service.get(Service.Field.owner, "")):
+            service.pop(Service.Field.endpoint, None)
         results.append(bin_to_url(service))
 
     page = {
@@ -273,3 +277,11 @@ def redirect_request(req, ep, path=""):
                  "didn't return a valid JSON packet."))
 
         return resp.status_code, result
+
+
+def find_service(query, projection):
+    service = mongo.db.service.find_one(query, projection=projection)
+
+    assert service is not None, (404, "Couldn't find service " + service_id)
+
+    return service

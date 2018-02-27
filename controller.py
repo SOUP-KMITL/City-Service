@@ -7,8 +7,8 @@ import binascii
 # Custom modules and packages
 from utils import wskutil
 from utils.error import ServiceException
-from utils.template.service import Service
-from utils.template.user import User
+from utils.template import Service
+from utils.template import User
 import helper
 
 # Constant variables
@@ -35,6 +35,8 @@ def set_flask_instance(f):
 
 def get_services():
     services = None
+    token = request.headers.get(AUTH_HEAD, None)
+    user = helper.get_user_by_token(token)
     args = request.args
     size = args.get("size", 20, int)
     page = args.get("page", 0, int)
@@ -52,7 +54,7 @@ def get_services():
     if size < 0:
         size = 20
 
-    page = helper.get_page(services, page, size)
+    page = helper.get_page(services, page, size, user)
 
     return jsonify(page), 200
 
@@ -95,14 +97,17 @@ def create_service():
 
 def get_service(service_id):
     ret_resp = {SUCCESS: False, MESSAGE: ""}
+    token = request.headers.get(AUTH_HEAD, None)
+    user = helper.get_user_by_token(token)
 
-    service = mongo.db.service.find_one(
+    service = helper.find_service(
         {Service.Field.service_id: service_id},
-        { Service.Field.id: False})
+        {Service.Field.id: False})
 
-    if service is None:
-        ret_resp[MESSAGE] = "Couldn't find service " + service_id
-        return jsonify(ret_resp), 404
+    if user is None or (user.get(User.Field.username, "") !=
+                        service.get(Service.Field.owner, "")):
+        service.pop(Service.Field.endpoint, None)
+
 
     helper.bin_to_url(service)
 
@@ -214,12 +219,9 @@ def upload_thumbnail(service_id):
 
 
 def download_thumbnail(service_id):
-    service = mongo.db.service.find_one(
+    service = helper.find_service(
         {Service.Field.service_id: service_id},
         {Service.Field.id: False, Service.Field.thumbnail: True})
-
-    assert service is not None, (404, "Couldn't find service " + service_id)
-
     thumbnail = service.get(Service.Field.thumbnail, None)
 
     assert thumbnail is not None, (404, "No thumbnail file found")
@@ -260,12 +262,9 @@ def upload_swagger(service_id):
 
 
 def download_swagger(service_id):
-    service = mongo.db.service.find_one(
+    service = helper.find_service(
         {Service.Field.service_id: service_id},
         {Service.Field.id: False, Service.Field.swagger: True})
-
-    assert service is not None, (404, "Couldn't find service " + service_id)
-
     swagger = service.get(Service.Field.swagger, None)
 
     assert swagger is not None, (404, "No swagger file found")
@@ -278,12 +277,9 @@ def download_swagger(service_id):
 
 
 def invoke_service(service_id, custom_path=""):
-    service = mongo.db.service.find_one(
+    service = helper.find_service(
         {Service.Field.service_id: service_id},
         {Service.Field.id: False})
-
-    assert service is not None, (404, "Couldn't find serviceId " + service_id)
-
     endpoint = service.get(Service.Field.endpoint, "")
 
     if endpoint:
