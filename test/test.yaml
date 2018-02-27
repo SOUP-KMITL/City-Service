@@ -101,6 +101,7 @@
     - group: "Update City Service"
     - name: "Read recently updated service"
     - url: {template: "/api/v1/services/$service_id"}
+    - headers: {template: {'Authorization': '$Kohpai_token'}}
     - validators:
         - compare: {jsonpath_mini: 'endpoint', comparator: 'str_eq', expected: {template: '$remote_ep'}}
         - compare: {jsonpath_mini: 'owner', comparator: 'str_eq', expected: {template: '$owner'}}
