@@ -1,3 +1,16 @@
+class Page:
+    class Field:
+        content     = "content"
+        first       = "first"
+        last        = "last"
+        sort        = "sort"
+        size        = "size"
+        total_pages = "totalPages"
+        total_elems = "totalElements"
+        num_elems   = "numberOfElements"
+        curr_page   = "number"
+
+
 class Service:
     class Field:
         id           = "_id"
@@ -15,3 +28,13 @@ class Service:
         updated_at   = "updatedAt"
         code         = "code"
         kind         = "kind"
+
+
+class User:
+    class Field:
+        user_id = "userId"
+        username = "userName"
+        fname = "firstName"
+        lname = "lastName"
+        email = "email"
+        token = "accessToken"
