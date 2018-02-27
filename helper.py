@@ -192,26 +192,24 @@ def get_json_body(req):
     return req.get_json()
 
 
-def bin_to_url(cursors):
-    cursors = list(cursors)
+def bin_to_url(cursor):
+    service_id = cursor.get(Service.Field.service_id, "")
+    thumbnail = cursor.get(Service.Field.thumbnail, None)
+    swagger = cursor.get(Service.Field.swagger, None)
 
-    for cursor in cursors:
-        service_id = cursor.get(Service.Field.service_id, "")
-        thumbnail = cursor.get(Service.Field.thumbnail, None)
-        swagger = cursor.get(Service.Field.swagger, None)
+    if thumbnail is not None:
+        cursor[Service.Field.thumbnail] = appconfig.EXT_API_GATEWAY + \
+            "/services/" + service_id + "/thumbnail"
 
-        if thumbnail is not None:
-            cursor[Service.Field.thumbnail] = appconfig.EXT_API_GATEWAY + \
-                "/services/" + service_id + "/thumbnail"
+    if swagger is not None:
+        cursor[Service.Field.swagger] = appconfig.EXT_API_GATEWAY + \
+            "/services/" + service_id + "/swagger"
 
-        if swagger is not None:
-            cursor[Service.Field.swagger] = appconfig.EXT_API_GATEWAY + \
-                "/services/" + service_id + "/swagger"
-
-    return cursors
+    return cursor
 
 
 def get_page(services, page=0, size=20):
+    results = list()
     total_elems = services.count()
     total_pages = math.ceil(total_elems / size)
 
@@ -220,10 +218,12 @@ def get_page(services, page=0, size=20):
         .sort(Service.Field.created_at, pymongo.DESCENDING)
 
     num_elems = services.count(with_limit_and_skip=True)
-    services = bin_to_url(services)
+
+    for service in services:
+        results.append(bin_to_url(service))
 
     page = {
-        Page.Field.content: services,
+        Page.Field.content: results,
         Page.Field.first: True if page == 0 else False,
         Page.Field.last: True if page >= total_pages - 1 else False,
         Page.Field.sort: None,

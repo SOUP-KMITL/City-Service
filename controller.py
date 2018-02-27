@@ -98,15 +98,13 @@ def get_service(service_id):
 
     service = mongo.db.service.find_one(
         {Service.Field.service_id: service_id},
-        {
-            Service.Field.id: False,
-            Service.Field.thumbnail: False,
-            Service.Field.swagger: False
-        })
+        { Service.Field.id: False})
 
     if service is None:
         ret_resp[MESSAGE] = "Couldn't find service " + service_id
         return jsonify(ret_resp), 404
+
+    helper.bin_to_url(service)
 
     return jsonify(service), 200
 
@@ -216,10 +214,13 @@ def upload_thumbnail(service_id):
 
 
 def download_thumbnail(service_id):
-    thumbnail = mongo.db.service.find_one(
+    service = mongo.db.service.find_one(
         {Service.Field.service_id: service_id},
-        {Service.Field.id: False, Service.Field.thumbnail: True}) \
-        .get(Service.Field.thumbnail, None)
+        {Service.Field.id: False, Service.Field.thumbnail: True})
+
+    assert service is not None, (404, "Couldn't find service " + service_id)
+
+    thumbnail = service.get(Service.Field.thumbnail, None)
 
     assert thumbnail is not None, (404, "No thumbnail file found")
 
@@ -259,12 +260,13 @@ def upload_swagger(service_id):
 
 
 def download_swagger(service_id):
-    swagger = mongo.db.service.find_one(
+    service = mongo.db.service.find_one(
         {Service.Field.service_id: service_id},
-        {
-            Service.Field.id: False,
-            Service.Field.swagger: True
-        }).get(Service.Field.swagger, None)
+        {Service.Field.id: False, Service.Field.swagger: True})
+
+    assert service is not None, (404, "Couldn't find service " + service_id)
+
+    swagger = service.get(Service.Field.swagger, None)
 
     assert swagger is not None, (404, "No swagger file found")
 
