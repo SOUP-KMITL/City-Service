@@ -25,6 +25,10 @@ def update_service(service_id, u, d):
     service = None
 
     if d:
+        if Service.Field.endpoint in d:
+            d[Service.Field.endpoint] = \
+                d.get(Service.Field.endpoint, "/").strip("/")
+
         d[Service.Field.updated_at] = int(time.time())
         service = mongo.db.service.find_one_and_update(
             {Service.Field.service_id: service_id, Service.Field.owner: u},
@@ -243,20 +247,21 @@ def get_page(services, page=0, size=20, user=None):
 
 def redirect_request(req, ep, path=""):
     url = ep + "/" + path
+    args = req.args
     method = req.method
     result = None
 
     try:
         if method == "GET":
-            resp = requests.get(url, params=req.args)
+            resp = requests.get(url, params=args)
         elif method == "POST" or method == "POST" or method == "PATCH":
             resp = requests.post(
                 url,
                 data=req.data,
-                params=req.args,
+                params=args,
                 headers=req.headers)
         elif method == "DELETE":
-            resp = requests.delete(url, params=req.args, headers=req.headers)
+            resp = requests.delete(url, params=args, headers=req.headers)
         else:
             print("redirect_request: Unsupported HTTP method")
             raise ServiceException(400, "Unsupported HTTP method")
