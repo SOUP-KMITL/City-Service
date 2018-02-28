@@ -6,7 +6,7 @@
         'sname': "PyRestTest service name",
         'unauth_token': "abc1234",
         'python_code': "ZGVmIG1haW4oYXJncyk6CiAgICByZXR1cm4geyJtZXNzYWdlIjogIkhlbGxvIGZyb20gcHl0aG9uISJ9Cg==",
-        'remote_ep': "https://www.google.com/",
+        'remote_ep': "https://www.google.com",
         'owner': "Kohpai",
         }
     - generators:
