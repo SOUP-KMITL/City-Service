@@ -14,6 +14,7 @@ from utils import wskutil
 import appconfig
 
 mongo = None
+TIMEOUT = 5 # timeout for requests in seconds
 
 
 def set_mongo_instance(m):
@@ -106,12 +107,15 @@ def get_user_by_token(t):
     resp = None
 
 ***REMOVED***
-        resp = requests.get(appconfig.USER_API, params=query)
+        resp = requests.get(appconfig.USER_API, params=query, timeout=TIMEOUT)
 ***REMOVED***
         print("get_user_by_token: couldn't connect to external service")
 ***REMOVED***
 ***REMOVED***
         print("get_user_by_token: connection to external service timeout")
+***REMOVED***
+    except requests.ReadTimeout:
+        print("get_user_by_token: reading from external service timeout")
 ***REMOVED***
 ***REMOVED***
 ***REMOVED***
@@ -253,15 +257,20 @@ def redirect_request(req, ep, path=""):
 
 ***REMOVED***
         if method == "GET":
-            resp = requests.get(url, params=args)
-        elif method == "POST" or method == "POST" or method == "PATCH":
+            resp = requests.get(url, params=args, timeout=TIMEOUT)
+        elif method == "POST" or method == "PUT" or method == "PATCH":
     ***REMOVED***
                 url,
                 data=req.data,
                 params=args,
-                headers=req.headers)
+                headers=req.headers,
+                timeout=TIMEOUT)
         elif method == "DELETE":
-    ***REMOVED***url, params=args, headers=req.headers)
+    ***REMOVED***
+                url,
+                params=args,
+                headers=req.headers,
+                timeout=TIMEOUT)
     ***REMOVED***
             print("redirect_request: Unsupported HTTP method")
     ***REMOVED*** ServiceException(400, "Unsupported HTTP method")
@@ -271,6 +280,9 @@ def redirect_request(req, ep, path=""):
 ***REMOVED***
 ***REMOVED***
         print("redirect_request: connection to external service timeout")
+***REMOVED***
+    except requests.ReadTimeout:
+        print("redirect_request: reading from external service timeout")
 ***REMOVED***
 ***REMOVED***
     ***REMOVED***
