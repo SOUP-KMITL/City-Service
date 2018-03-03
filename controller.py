@@ -28,6 +28,7 @@ def set_flask_instance(f):
     helper.set_mongo_instance(mongo)
     f.register_error_handler(requests.ConnectionError, direct_err)
     f.register_error_handler(requests.ConnectTimeout, direct_err)
+    f.register_error_handler(requests.ReadTimeout, direct_err)
     f.register_error_handler(ServiceException, custom_err_handler)
     f.register_error_handler(binascii.Error, base64_err_handler)
     f.register_error_handler(AssertionError, assert_err_handler)

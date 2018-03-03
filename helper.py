@@ -14,6 +14,7 @@ from utils import wskutil
 import appconfig
 
 mongo = None
+TIMEOUT = 5 # timeout for requests in seconds
 
 
 def set_mongo_instance(m):
@@ -106,12 +107,15 @@ def get_user_by_token(t):
     resp = None
 
     try:
-        resp = requests.get(appconfig.USER_API, params=query)
+        resp = requests.get(appconfig.USER_API, params=query, timeout=TIMEOUT)
     except requests.ConnectionError:
         print("get_user_by_token: couldn't connect to external service")
         raise
     except requests.ConnectTimeout:
         print("get_user_by_token: connection to external service timeout")
+        raise
+    except requests.ReadTimeout:
+        print("get_user_by_token: reading from external service timeout")
         raise
     else:
         http_code = resp.status_code
@@ -253,15 +257,20 @@ def redirect_request(req, ep, path=""):
 
     try:
         if method == "GET":
-            resp = requests.get(url, params=args)
-        elif method == "POST" or method == "POST" or method == "PATCH":
+            resp = requests.get(url, params=args, timeout=TIMEOUT)
+        elif method == "POST" or method == "PUT" or method == "PATCH":
             resp = requests.post(
                 url,
                 data=req.data,
                 params=args,
-                headers=req.headers)
+                headers=req.headers,
+                timeout=TIMEOUT)
         elif method == "DELETE":
-            resp = requests.delete(url, params=args, headers=req.headers)
+            resp = requests.delete(
+                url,
+                params=args,
+                headers=req.headers,
+                timeout=TIMEOUT)
         else:
             print("redirect_request: Unsupported HTTP method")
             raise ServiceException(400, "Unsupported HTTP method")
@@ -271,6 +280,9 @@ def redirect_request(req, ep, path=""):
         raise
     except requests.ConnectTimeout:
         print("redirect_request: connection to external service timeout")
+        raise
+    except requests.ReadTimeout:
+        print("redirect_request: reading from external service timeout")
         raise
     else:
         try:
