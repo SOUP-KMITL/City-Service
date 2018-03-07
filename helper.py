@@ -7,14 +7,13 @@ import math
 
 # Custom modules and packages
 from utils.template import Service
-from utils.template import User
 from utils.template import Page
 from utils.error import ServiceException
 from utils import wskutil
 import appconfig
 
 mongo = None
-TIMEOUT = 5 # timeout for requests in seconds
+TIMEOUT = 5  # timeout for requests in seconds
 
 
 def set_mongo_instance(m):
@@ -83,7 +82,7 @@ def filter_params(d, vkeys):
 def get_action(owner, service_name):
     username = secure_filename(owner)
     serviceName = secure_filename(service_name)
-    action = username + "/" + serviceName
+    action = "{}/{}".format(username, serviceName)
 
     return action
 
@@ -121,7 +120,7 @@ def get_user_by_token(t):
         http_code = resp.status_code
         if http_code != 200:
             error = "Unknown external service error"
-            print("get_user_by_token: " + error)
+            print("get_user_by_token: {}".format(error))
             raise ServiceException(http_code, error)
 
     result = resp.json()
@@ -179,7 +178,8 @@ def assert_input(din, rkeys, vkeys):
     filter_params(din, vkeys)
     res = all(key in din for key in rkeys)
 
-    assert res, (400, "Required fileds are missing: " + ", ".join(rkeys))
+    assert res, \
+        (400, "Required fileds are missing: {}".format(", ".join(rkeys)))
 
 
 def assert_service_and_owner(service):
@@ -207,18 +207,19 @@ def bin_to_url(cursor):
     swagger = cursor.get(Service.Field.swagger, None)
 
     if thumbnail is not None:
-        cursor[Service.Field.thumbnail] = appconfig.EXT_API_GATEWAY + \
-            "/services/" + service_id + "/thumbnail"
+        cursor[Service.Field.thumbnail] = "{}/services/{}/thumbnail".format(
+            appconfig.EXT_API_GATEWAY,
+            service_id)
 
     if swagger is not None:
-        cursor[Service.Field.swagger] = appconfig.EXT_API_GATEWAY + \
-            "/services/" + service_id + "/swagger"
+        cursor[Service.Field.swagger] = "{}/services/{}/swagger".format(
+            appconfig.EXT_API_GATEWAY,
+            service_id)
 
     return cursor
 
 
-def get_page(services, page=0, size=20, user=None):
-    results = list()
+def get_page(services, page=0, size=20):
     total_elems = services.count()
     total_pages = math.ceil(total_elems / size)
 
@@ -227,12 +228,7 @@ def get_page(services, page=0, size=20, user=None):
         .sort(Service.Field.created_at, pymongo.DESCENDING)
 
     num_elems = services.count(with_limit_and_skip=True)
-
-    for service in services:
-        if user is None or (user.get(User.Field.username, "") !=
-                            service.get(Service.Field.owner, "")):
-            service.pop(Service.Field.endpoint, None)
-        results.append(bin_to_url(service))
+    results = list(map(bin_to_url, services))
 
     page = {
         Page.Field.content: results,
@@ -250,7 +246,7 @@ def get_page(services, page=0, size=20, user=None):
 
 
 def redirect_request(req, ep, path=""):
-    url = ep + "/" + path
+    url = "{}/{}".format(ep, path)
     args = req.args
     method = req.method
     result = None
@@ -301,6 +297,7 @@ def find_service(service_id, projection):
         {Service.Field.service_id: service_id},
         projection=projection)
 
-    assert service is not None, (404, "Couldn't find service " + service_id)
+    assert service is not None, \
+        (404, "Couldn't find service {}".format(service_id))
 
     return service

@@ -11,6 +11,7 @@ Flask = "*"
 requests = "*"
 Flask-PyMongo = "*"
 gunicorn = "*"
+setuptools = "*"
 
 
 [dev-packages]
