@@ -72,5 +72,5 @@ app.add_url_rule(
 
 app.add_url_rule(
     "{}/test".format(appconfig.API_PREFIX),
-    view_func=controller.test_hello,
+    view_func=controller.test_empty,
     strict_slashes=False)
