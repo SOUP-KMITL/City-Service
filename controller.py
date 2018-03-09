@@ -301,8 +301,8 @@ def invoke_service(service_id, custom_path=""):
     return make_response((jsonify(result), http_code))
 
 
-def test_hello():
-    return jsonify({"message": "hello"}), 200
+def test_empty():
+    return "", 200
 
 
 def direct_err(e):
