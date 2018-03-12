@@ -219,27 +219,29 @@ def bin_to_url(cursor):
     return cursor
 
 
-def get_page(services, page=0, size=20):
-    total_elems = services.count()
+def get_page(query, projection, offset, size):
+    sorted_index = Service.Field.created_at
+    collection = mongo.db.service
+    total_elems = collection.count()
     total_pages = math.ceil(total_elems / size)
-
-    services = services.skip(page * size) \
+    services = collection.find(query, projection).skip(offset * size) \
         .limit(size) \
-        .sort(Service.Field.created_at, pymongo.DESCENDING)
+        .sort(sorted_index, pymongo.DESCENDING)
 
-    num_elems = services.count(with_limit_and_skip=True)
+    last = True if offset >= total_pages - 1 else False
+    num_elems = total_elems % size if last else size
     results = list(map(bin_to_url, services))
 
     page = {
         Page.Field.content: results,
-        Page.Field.first: True if page == 0 else False,
-        Page.Field.last: True if page >= total_pages - 1 else False,
-        Page.Field.sort: None,
+        Page.Field.first: True if offset == 0 else False,
+        Page.Field.last: last,
+        Page.Field.sort: sorted_index,
         Page.Field.size: size,
         Page.Field.total_pages: total_pages,
         Page.Field.total_elems: total_elems,
         Page.Field.num_elems: num_elems,
-        Page.Field.curr_page: page,
+        Page.Field.curr_page: offset,
     }
 
     return page

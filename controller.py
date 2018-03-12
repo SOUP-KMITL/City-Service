@@ -40,7 +40,7 @@ def get_services():
     user = helper.get_user_by_token(token)
     args = request.args
     size = args.get("size", 20, int)
-    page = args.get("page", 0, int)
+    offset = args.get("page", 0, int)
     key = Service.Field.owner
     query = {}
     projection = {Service.Field.id: False}
@@ -53,15 +53,13 @@ def get_services():
 ***REMOVED***
         query[Service.Field.owner] = user.get(User.Field.username, "")
 
-    services = mongo.db.service.find(query, projection)
+    if offset < 0:
+        offset = 0
 
-    if page < 0:
-        page = 0
-
-    if size < 0:
+    if size <= 0:
         size = 20
 
-    page = helper.get_page(services, page, size)
+    page = helper.get_page(query, projection, offset, size)
 
     return jsonify(page), 200
 
@@ -306,7 +304,13 @@ def test_empty():
 
 
 def test_multiple_records(num=1):
-    services = mongo.db.service.find({}, {Service.Field.id: False}).limit(num)
+    services = mongo.db.service.find(
+        {},
+        {
+            Service.Field.id: False,
+            Service.Field.thumbnail: False,
+            Service.Field.swagger: False
+        }).limit(num)
     return jsonify(list(services)), 200
 
 
