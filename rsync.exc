@@ -8,4 +8,5 @@ deploy.sh
 verbose.out
 rsync.exc
 test/
+docker-compose.yml
 !.dockerignore

@@ -305,6 +305,16 @@ def test_empty():
     return "", 200
 
 
+def test_multiple_records(num=1):
+    services = mongo.db.service.find({}, {Service.Field.id: False}).limit(num)
+    return jsonify(list(services)), 200
+
+
+def test_single_record(service_id):
+    service = helper.find_service(service_id, {Service.Field.id: False})
+    return jsonify(service), 200
+
+
 def direct_err(e):
     ret_resp = {"success": False, "message": e.__str__()}
     return jsonify(ret_resp), 500

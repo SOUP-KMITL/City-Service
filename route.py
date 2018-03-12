@@ -74,3 +74,13 @@ app.add_url_rule(
     "{}/test".format(appconfig.API_PREFIX),
     view_func=controller.test_empty,
     strict_slashes=False)
+
+app.add_url_rule(
+    "{}/test/indy/<service_id>".format(appconfig.API_PREFIX),
+    view_func=controller.test_single_record,
+    strict_slashes=False)
+
+app.add_url_rule(
+    "{}/test/mult/<int:num>".format(appconfig.API_PREFIX),
+    view_func=controller.test_multiple_records,
+    strict_slashes=False)
