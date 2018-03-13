@@ -3,6 +3,7 @@ from flask_pymongo import PyMongo
 import requests
 import base64
 import binascii
+import time
 
 # Custom modules and packages
 from utils import wskutil
@@ -317,6 +318,43 @@ def test_multiple_records(num=1):
 def test_single_record(service_id):
     service = helper.find_service(service_id, {Service.Field.id: False})
     return jsonify(service), 200
+
+
+def test_create():
+    ret_resp = {SUCCESS: False, MESSAGE: ""}
+    valid_keys = [
+        Service.Field.service_name,
+        Service.Field.owner,
+        Service.Field.description,
+    ]
+    required_keys = valid_keys[:-1]
+    token = request.headers.get(AUTH_HEAD, None)
+    user = helper.get_user_by_token(token)
+
+    helper.assert_user(user)
+
+    din = helper.get_json_body(request)
+    din[Service.Field.owner] = user.get(User.Field.username, "")
+    din[Service.Field.service_name] = str(time.time())
+
+    helper.assert_input(din, required_keys, valid_keys)
+
+    action = helper.get_action(
+        din.get(Service.Field.owner, ""),
+        din.get(Service.Field.service_name, ""))
+    service = helper.insert_service(din)
+
+    assert service is not None, \
+        (409, "Service {} already exists".format(action))
+
+    helper.init_action(action)
+
+    ret_resp[SUCCESS] = True
+    ret_resp[MESSAGE] = "Service {} is successfully created.".format(action)
+    ret_resp[Service.Field.service_id] = \
+        service.get(Service.Field.service_id, "")
+
+    return jsonify(ret_resp), 201
 
 
 def direct_err(e):

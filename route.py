@@ -84,3 +84,8 @@ app.add_url_rule(
     "{}/test/mult/<int:num>".format(appconfig.API_PREFIX),
     view_func=controller.test_multiple_records,
     strict_slashes=False)
+
+app.add_url_rule(
+    "{}/test/create".format(appconfig.API_PREFIX),
+    view_func=controller.test_create,
+    strict_slashes=False, methods=["POST"])
