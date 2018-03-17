@@ -7,14 +7,13 @@ import math
 
 # Custom modules and packages
 from utils.template import Service
-from utils.template import User
 from utils.template import Page
 from utils.error import ServiceException
 from utils import wskutil
 import appconfig
 
 mongo = None
-TIMEOUT = 5 # timeout for requests in seconds
+TIMEOUT = 5  # timeout for requests in seconds
 
 
 def set_mongo_instance(m):
@@ -83,7 +82,7 @@ def filter_params(d, vkeys):
 def get_action(owner, service_name):
     username = secure_filename(owner)
     serviceName = secure_filename(service_name)
-    action = username + "/" + serviceName
+    action = "{}/{}".format(username, serviceName)
 
     return action
 
@@ -121,7 +120,7 @@ def get_user_by_token(t):
 ***REMOVED***
 ***REMOVED***
             error = "Unknown external service error"
-            print("get_user_by_token: " + error)
+            print("get_user_by_token: {}".format(error))
     ***REMOVED*** ServiceException(http_code, error)
 
     result = resp.json()
@@ -179,7 +178,8 @@ def assert_input(din, rkeys, vkeys):
     filter_params(din, vkeys)
     res = all(key in din for key in rkeys)
 
-    assert res, (400, "Required fileds are missing: " + ", ".join(rkeys))
+    assert res, \
+        (400, "Required fileds are missing: {}".format(", ".join(rkeys)))
 
 
 def assert_service_and_owner(service):
@@ -207,50 +207,48 @@ def bin_to_url(cursor):
     swagger = cursor.get(Service.Field.swagger, None)
 
     if thumbnail is not None:
-        cursor[Service.Field.thumbnail] = appconfig.EXT_API_GATEWAY + \
-            "/services/" + service_id + "/thumbnail"
+        cursor[Service.Field.thumbnail] = "{}/services/{}/thumbnail".format(
+            appconfig.EXT_API_GATEWAY,
+            service_id)
 
     if swagger is not None:
-        cursor[Service.Field.swagger] = appconfig.EXT_API_GATEWAY + \
-            "/services/" + service_id + "/swagger"
+        cursor[Service.Field.swagger] = "{}/services/{}/swagger".format(
+            appconfig.EXT_API_GATEWAY,
+            service_id)
 
     return cursor
 
 
-def get_page(services, page=0, size=20, user=None):
-    results = list()
-    total_elems = services.count()
+def get_page(query, projection, offset, size):
+    sorted_index = Service.Field.created_at
+    collection = mongo.db.service
+    total_elems = collection.count()
     total_pages = math.ceil(total_elems / size)
-
-    services = services.skip(page * size) \
+    services = collection.find(query, projection).skip(offset * size) \
         .limit(size) \
-        .sort(Service.Field.created_at, pymongo.DESCENDING)
+        .sort(sorted_index, pymongo.DESCENDING)
 
-    num_elems = services.count(with_limit_and_skip=True)
-
-    for service in services:
-        if user is None or (user.get(User.Field.username, "") !=
-                            service.get(Service.Field.owner, "")):
-            service.pop(Service.Field.endpoint, None)
-        results.append(bin_to_url(service))
+    last = True if offset >= total_pages - 1 else False
+    num_elems = total_elems % size if last else size
+    results = list(map(bin_to_url, services))
 
     page = {
         Page.Field.content: results,
-        Page.Field.first: True if page == 0 else False,
-        Page.Field.last: True if page >= total_pages - 1 else False,
-        Page.Field.sort: None,
+        Page.Field.first: True if offset == 0 else False,
+        Page.Field.last: last,
+        Page.Field.sort: sorted_index,
         Page.Field.size: size,
         Page.Field.total_pages: total_pages,
         Page.Field.total_elems: total_elems,
         Page.Field.num_elems: num_elems,
-        Page.Field.curr_page: page,
+        Page.Field.curr_page: offset,
     }
 
     return page
 
 
 def redirect_request(req, ep, path=""):
-    url = ep + "/" + path
+    url = "{}/{}".format(ep, path)
     args = req.args
     method = req.method
     result = None
@@ -301,6 +299,7 @@ def find_service(service_id, projection):
         {Service.Field.service_id: service_id},
         projection=projection)
 
-    assert service is not None, (404, "Couldn't find service " + service_id)
+    assert service is not None, \
+        (404, "Couldn't find service {}".format(service_id))
 
     return service

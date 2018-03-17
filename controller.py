@@ -3,6 +3,7 @@ from flask_pymongo import PyMongo
 ***REMOVED***
 import base64
 import binascii
+import time
 
 # Custom modules and packages
 from utils import wskutil
@@ -40,22 +41,26 @@ def get_services():
     user = helper.get_user_by_token(token)
     args = request.args
     size = args.get("size", 20, int)
-    page = args.get("page", 0, int)
+    offset = args.get("page", 0, int)
     key = Service.Field.owner
     query = {}
+    projection = {Service.Field.id: False}
 
     if key in args:
         query[key] = args.get(key)
 
-    services = mongo.db.service.find(query, {Service.Field.id: False})
+    if user is None:
+        projection[Service.Field.endpoint] = False
+***REMOVED***
+        query[Service.Field.owner] = user.get(User.Field.username, "")
 
-    if page < 0:
-        page = 0
+    if offset < 0:
+        offset = 0
 
-    if size < 0:
+    if size <= 0:
         size = 20
 
-    page = helper.get_page(services, page, size, user)
+    page = helper.get_page(query, projection, offset, size)
 
     return jsonify(page), 200
 
@@ -83,13 +88,13 @@ def create_service():
         din.get(Service.Field.service_name, ""))
     service = helper.insert_service(din)
 
-    assert service is not None, (409, "Service " + action + " already exists")
+    assert service is not None, \
+        (409, "Service {} already exists".format(action))
 
     helper.init_action(action)
 
     ret_resp[SUCCESS] = True
-    ret_resp[MESSAGE] = "Service " + action + \
-        " is successfully created."
+    ret_resp[MESSAGE] = "Service {} is successfully created.".format(action)
     ret_resp[Service.Field.service_id] = \
         service.get(Service.Field.service_id, "")
 
@@ -97,7 +102,6 @@ def create_service():
 
 
 def get_service(service_id):
-    ret_resp = {SUCCESS: False, MESSAGE: ""}
     token = request.headers.get(AUTH_HEAD, None)
     user = helper.get_user_by_token(token)
 
@@ -106,7 +110,6 @@ def get_service(service_id):
     if user is None or (user.get(User.Field.username, "") !=
                         service.get(Service.Field.owner, "")):
         service.pop(Service.Field.endpoint, None)
-
 
     helper.bin_to_url(service)
 
@@ -141,8 +144,7 @@ def delete_service(service_id):
     ***REMOVED***
 
     ret_resp[SUCCESS] = True
-    ret_resp[MESSAGE] = "Service " + service_id + \
-        " is successfully deleted"
+    ret_resp[MESSAGE] = "Service {} is successfully deleted".format(service_id)
 
     return jsonify(ret_resp), 200
 
@@ -183,8 +185,7 @@ def patch_service(service_id):
         wskutil.update_action(action, kind, code, True)
 
     ret_resp[SUCCESS] = True
-    ret_resp[MESSAGE] = "Service " + service_id + \
-        " is successfully updated"
+    ret_resp[MESSAGE] = "Service {} is successfully updated".format(service_id)
 
     return jsonify(ret_resp), 200
 
@@ -297,6 +298,63 @@ def invoke_service(service_id, custom_path=""):
     http_code, result = wskutil.invoke_action(action, params)
 
     return make_response((jsonify(result), http_code))
+
+
+def test_empty():
+    return "", 200
+
+
+def test_multiple_records(num=1):
+    services = mongo.db.service.find(
+        {},
+        {
+            Service.Field.id: False,
+            Service.Field.thumbnail: False,
+            Service.Field.swagger: False
+        }).limit(num)
+    return jsonify(list(services)), 200
+
+
+def test_single_record(service_id):
+    service = helper.find_service(service_id, {Service.Field.id: False})
+    return jsonify(service), 200
+
+
+def test_create():
+    ret_resp = {SUCCESS: False, MESSAGE: ""}
+    valid_keys = [
+        Service.Field.service_name,
+        Service.Field.owner,
+        Service.Field.description,
+    ]
+    required_keys = valid_keys[:-1]
+    token = request.headers.get(AUTH_HEAD, None)
+    user = helper.get_user_by_token(token)
+
+    helper.assert_user(user)
+
+    din = helper.get_json_body(request)
+    din[Service.Field.owner] = user.get(User.Field.username, "")
+    din[Service.Field.service_name] = str(time.time())
+
+    helper.assert_input(din, required_keys, valid_keys)
+
+    action = helper.get_action(
+        din.get(Service.Field.owner, ""),
+        din.get(Service.Field.service_name, ""))
+    service = helper.insert_service(din)
+
+    assert service is not None, \
+        (409, "Service {} already exists".format(action))
+
+    helper.init_action(action)
+
+    ret_resp[SUCCESS] = True
+    ret_resp[MESSAGE] = "Service {} is successfully created.".format(action)
+    ret_resp[Service.Field.service_id] = \
+        service.get(Service.Field.service_id, "")
+
+    return jsonify(ret_resp), 201
 
 
 def direct_err(e):
