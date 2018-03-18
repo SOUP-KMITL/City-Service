@@ -42,17 +42,21 @@ def get_services():
     args = request.args
     size = args.get("size", 20, int)
     offset = args.get("page", 0, int)
-    key = Service.Field.owner
+    owner = Service.Field.owner
+    keyword = Service.Field.keyword
     query = {}
     projection = {Service.Field.id: False}
 
-    if key in args:
-        query[key] = args.get(key)
+    if owner in args:
+        query[owner] = args[owner]
+
+    if keyword in args:
+        query["$text"] = {"$search": "\"{}\"".format(args[keyword])}
 
     if user is None:
         projection[Service.Field.endpoint] = False
 ***REMOVED***
-        query[Service.Field.owner] = user.get(User.Field.username, "")
+        query[owner] = user.get(User.Field.username, "")
 
     if offset < 0:
         offset = 0

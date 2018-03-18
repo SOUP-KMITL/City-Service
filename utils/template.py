@@ -28,6 +28,7 @@ class Service:
         updated_at   = "updatedAt"
         code         = "code"
         kind         = "kind"
+        keyword      = "keyword"
 
 
 class User:
