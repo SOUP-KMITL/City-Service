@@ -92,7 +92,7 @@ def extract_code(d):
     kind = d.pop("kind", None)
     ret = False
 
-    if "code" in d and "kind" in d:
+    if code is not None and kind is not None:
         ret = True
 
     return ret, code, kind
