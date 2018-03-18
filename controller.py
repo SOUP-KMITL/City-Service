@@ -32,6 +32,7 @@ def set_flask_instance(f):
     f.register_error_handler(requests.ReadTimeout, direct_err)
     f.register_error_handler(ServiceException, custom_err_handler)
     f.register_error_handler(binascii.Error, base64_err_handler)
+    f.register_error_handler(UnicodeDecodeError, base64_err_handler)
     f.register_error_handler(AssertionError, assert_err_handler)
 
 
@@ -185,6 +186,7 @@ def patch_service(service_id):
         service.get(Service.Field.service_name, ""))
 
     if chcode:
+        print(code)
         code = base64.b64decode(code).decode()
         wskutil.update_action(action, kind, code, True)
 
