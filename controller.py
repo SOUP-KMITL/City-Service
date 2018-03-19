@@ -186,7 +186,6 @@ def patch_service(service_id):
         service.get(Service.Field.service_name, ""))
 
     if chcode:
-        print(code)
         code = base64.b64decode(code).decode()
         wskutil.update_action(action, kind, code, True)
 

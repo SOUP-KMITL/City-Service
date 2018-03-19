@@ -222,14 +222,18 @@ def bin_to_url(cursor):
 def get_page(query, projection, offset, size):
     sorted_index = Service.Field.created_at
     collection = mongo.db.service
-    total_elems = collection.count()
+    services = collection.find(query, projection)
+
+    total_elems = services.count()
     total_pages = math.ceil(total_elems / size)
-    services = collection.find(query, projection).skip(offset * size) \
+
+    services = services.skip(offset * size) \
         .limit(size) \
         .sort(sorted_index, pymongo.DESCENDING)
 
     last = True if offset >= total_pages - 1 else False
-    num_elems = total_elems % size if last else size
+    leftover = total_elems % size
+    num_elems = leftover if last and leftover != 0 else size
     results = list(map(bin_to_url, services))
 
     page = {
