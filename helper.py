@@ -255,23 +255,26 @@ def redirect_request(req, ep, path=""):
     url = "{}/{}".format(ep, path)
     args = req.args
     method = req.method
+    headers = dict(req.headers)
     result = None
+
+    headers.pop("Host", None)
 
 ***REMOVED***
         if method == "GET":
-            resp = requests.get(url, params=args, timeout=TIMEOUT)
+            resp = requests.get(url, params=args, headers=headers, timeout=TIMEOUT)
         elif method == "POST" or method == "PUT" or method == "PATCH":
     ***REMOVED***
                 url,
                 data=req.data,
                 params=args,
-                headers=req.headers,
+                headers=headers,
                 timeout=TIMEOUT)
         elif method == "DELETE":
     ***REMOVED***
                 url,
                 params=args,
-                headers=req.headers,
+                headers=headers,
                 timeout=TIMEOUT)
     ***REMOVED***
             print("redirect_request: Unsupported HTTP method")
