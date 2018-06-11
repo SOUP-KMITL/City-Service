@@ -1,9 +1,13 @@
 from werkzeug.utils import secure_filename
+from Crypto.PublicKey import RSA
+from Crypto.Cipher import AES, PKCS1_v1_5
 import pymongo
-***REMOVED***
+import requests
 import uuid
 import time
 import math
+import base64
+import json
 
 # Custom modules and packages
 from utils.template import Service
@@ -14,6 +18,7 @@ import appconfig
 
 mongo = None
 TIMEOUT = 5  # timeout for requests in seconds
+cipher_asym = PKCS1_v1_5.new(RSA.importKey(open("ticket.priv", "rb").read()))
 
 
 def set_mongo_instance(m):
@@ -34,7 +39,7 @@ def update_service(service_id, u, d):
             {Service.Field.service_id: service_id, Service.Field.owner: u},
             {"$set": d},
             projection={Service.Field.id: False})
-***REMOVED***
+    else:
         service = mongo.db.service.find_one(
             {Service.Field.service_id: service_id, Service.Field.owner: u},
             {Service.Field.id: False})
@@ -60,7 +65,7 @@ def insert_service(data):
         Service.Field.updated_at: currentTime,
     }
 
-***REMOVED***
+    try:
         mongo.db.service.insert_one(doc)
     except pymongo.errors.DuplicateKeyError:
         return None
@@ -105,23 +110,23 @@ def get_user_by_token(t):
     query = {"token": t}
     resp = None
 
-***REMOVED***
+    try:
         resp = requests.get(appconfig.USER_API, params=query, timeout=TIMEOUT)
-***REMOVED***
+    except requests.ConnectionError:
         print("get_user_by_token: couldn't connect to external service")
-***REMOVED***
-***REMOVED***
+        raise
+    except requests.ConnectTimeout:
         print("get_user_by_token: connection to external service timeout")
-***REMOVED***
+        raise
     except requests.ReadTimeout:
         print("get_user_by_token: reading from external service timeout")
-***REMOVED***
-***REMOVED***
-***REMOVED***
-***REMOVED***
+        raise
+    else:
+        http_code = resp.status_code
+        if http_code != 200:
             error = "Unknown external service error"
             print("get_user_by_token: {}".format(error))
-    ***REMOVED*** ServiceException(http_code, error)
+            raise ServiceException(http_code, error)
 
     result = resp.json()
 
@@ -160,14 +165,14 @@ def init_action(action):
     username = action.split("/")[0]
 
     for i in range(2):
-    ***REMOVED***
+        try:
             if i == 1:
                 wskutil.create_package(username)
             wskutil.update_action(action, "nodejs:6", code, False)
             break
         except ServiceException as e:
             if i == 1 or e.http_code != 404:
-        ***REMOVED***
+                raise
 
 
 def assert_user(u):
@@ -260,40 +265,44 @@ def redirect_request(req, ep, path=""):
 
     headers.pop("Host", None)
 
-***REMOVED***
+    try:
         if method == "GET":
-            resp = requests.get(url, params=args, headers=headers, timeout=TIMEOUT)
+            resp = requests.get(
+                url,
+                params=args,
+                headers=headers,
+                timeout=TIMEOUT)
         elif method == "POST" or method == "PUT" or method == "PATCH":
-    ***REMOVED***
+            resp = requests.post(
                 url,
                 data=req.data,
                 params=args,
                 headers=headers,
                 timeout=TIMEOUT)
         elif method == "DELETE":
-    ***REMOVED***
+            resp = requests.delete(
                 url,
                 params=args,
                 headers=headers,
                 timeout=TIMEOUT)
-    ***REMOVED***
+        else:
             print("redirect_request: Unsupported HTTP method")
-    ***REMOVED*** ServiceException(400, "Unsupported HTTP method")
+            raise ServiceException(400, "Unsupported HTTP method")
 
-***REMOVED***
+    except requests.ConnectionError:
         print("redirect_request: couldn't connect to external service")
-***REMOVED***
-***REMOVED***
+        raise
+    except requests.ConnectTimeout:
         print("redirect_request: connection to external service timeout")
-***REMOVED***
+        raise
     except requests.ReadTimeout:
         print("redirect_request: reading from external service timeout")
-***REMOVED***
-***REMOVED***
-    ***REMOVED***
-    ***REMOVED***
+        raise
+    else:
+        try:
+            result = resp.json()
         except ValueError:
-    ***REMOVED*** ServiceException(
+            raise ServiceException(
                 500,
                 ("The remote endpoint of this service "
                  "didn't return a valid JSON packet."))
@@ -310,3 +319,64 @@ def find_service(service_id, projection):
         (404, "Couldn't find service {}".format(service_id))
 
     return service
+
+
+def create_ac_node(service_id, username, isOpen):
+    data = {"serviceId": service_id, "userId": username, "open": isOpen}
+
+    try:
+        resp = requests.post(
+                "{}/services".format(appconfig.AC_API),
+                json=data,
+                timeout=TIMEOUT)
+    except requests.ConnectionError:
+        print("create_ac_node: couldn't connect to external service")
+        raise
+    except requests.ConnectTimeout:
+        print("create_ac_node: connection to external service timeout")
+        raise
+    except requests.ReadTimeout:
+        print("create_ac_node: reading from external service timeout")
+        raise
+    else:
+        http_code = resp.status_code
+        if http_code != 201:
+            error = "Unknown external service error"
+            print("create_ac_node: {}".format(error))
+            raise ServiceException(http_code, error)
+
+
+def delete_ac_node(service_id):
+    try:
+        resp = requests.delete(
+            "{}/services/{}".format(appconfig.AC_API, service_id),
+            timeout=TIMEOUT)
+
+    except requests.ConnectionError:
+        print("delete_ac_node: couldn't connect to external service")
+        raise
+    except requests.ConnectTimeout:
+        print("delete_ac_node: connection to external service timeout")
+        raise
+    except requests.ReadTimeout:
+        print("delete_ac_node: reading from external service timeout")
+        raise
+    else:
+        http_code = resp.status_code
+        if http_code != 200:
+            error = "Unknown external service error"
+            print("delete_ac_node: {}".format(error))
+            raise ServiceException(http_code, error)
+
+
+def verify_ticket(ticket, service_id):
+    if ticket is None:
+        return False
+
+    ticket_json = json.loads(base64.urlsafe_b64decode(ticket).decode())
+    key = base64.urlsafe_b64decode(ticket_json.get("key", ""))
+    data = base64.urlsafe_b64decode(ticket_json.get("data", ""))
+    symkey = cipher_asym.decrypt(key, None)
+    tckt = json.loads(AES.new(symkey, AES.MODE_ECB).decrypt(data).decode())
+
+    return tckt.get("targetId", "") == service_id

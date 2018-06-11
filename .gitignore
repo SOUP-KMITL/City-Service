@@ -2,8 +2,11 @@
 *~
 __pycache__/
 db/
+tmp/
 !.gitignore
 !.dockerignore
 requirements.txt
 cityservice_key
 verbose.out
+ticket.priv
+docker-compose.yml

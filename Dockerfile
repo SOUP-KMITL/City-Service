@@ -1,7 +1,7 @@
 FROM python:3.6.3-alpine3.6
 ADD requirements.txt /tmp/requirements.txt
-# ADD repositories /etc/apk/repositories
-# RUN apk add --update gcc musl-dev
+ADD repositories /etc/apk/repositories
+RUN apk add --update gcc autoconf musl-dev
 RUN pip install -r /tmp/requirements.txt
 ADD . /app
 WORKDIR /app

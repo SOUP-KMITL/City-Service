@@ -30,16 +30,16 @@ app.add_url_rule(
     methods=["PATCH"])
 
 app.add_url_rule(
-    "{}/<service_id>/thumbnail".format(appconfig.API_PREFIX),
-    view_func=controller.upload_thumbnail,
-    strict_slashes=False,
-    methods=["PUT"])
-
-app.add_url_rule(
     "{}/<service_id>".format(appconfig.API_PREFIX),
     view_func=controller.delete_service,
     strict_slashes=False,
     methods=["DELETE"])
+
+app.add_url_rule(
+    "{}/<service_id>/thumbnail".format(appconfig.API_PREFIX),
+    view_func=controller.upload_thumbnail,
+    strict_slashes=False,
+    methods=["PUT"])
 
 app.add_url_rule(
     "{}/<service_id>/thumbnail".format(appconfig.API_PREFIX),
@@ -70,22 +70,22 @@ app.add_url_rule(
     strict_slashes=False,
     methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
 
-app.add_url_rule(
-    "{}/test".format(appconfig.API_PREFIX),
-    view_func=controller.test_empty,
-    strict_slashes=False)
+#  app.add_url_rule(
+#      "{}/test".format(appconfig.API_PREFIX),
+#      view_func=controller.test_empty,
+#      strict_slashes=False)
 
-app.add_url_rule(
-    "{}/test/indy/<service_id>".format(appconfig.API_PREFIX),
-    view_func=controller.test_single_record,
-    strict_slashes=False)
+#  app.add_url_rule(
+#      "{}/test/indy/<service_id>".format(appconfig.API_PREFIX),
+#      view_func=controller.test_single_record,
+#      strict_slashes=False)
 
-app.add_url_rule(
-    "{}/test/mult/<int:num>".format(appconfig.API_PREFIX),
-    view_func=controller.test_multiple_records,
-    strict_slashes=False)
+#  app.add_url_rule(
+#      "{}/test/mult/<int:num>".format(appconfig.API_PREFIX),
+#      view_func=controller.test_multiple_records,
+#      strict_slashes=False)
 
-app.add_url_rule(
-    "{}/test/create".format(appconfig.API_PREFIX),
-    view_func=controller.test_create,
-    strict_slashes=False, methods=["POST"])
+#  app.add_url_rule(
+#      "{}/test/create".format(appconfig.API_PREFIX),
+#      view_func=controller.test_create,
+#      strict_slashes=False, methods=["POST"])

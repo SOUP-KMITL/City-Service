@@ -1,6 +1,6 @@
 from flask import request, jsonify, make_response
 from flask_pymongo import PyMongo
-***REMOVED***
+import requests
 import base64
 import binascii
 import time
@@ -56,7 +56,7 @@ def get_services():
 
     if user is None:
         projection[Service.Field.endpoint] = False
-***REMOVED***
+    else:
         query[owner] = user.get(User.Field.username, "")
 
     if offset < 0:
@@ -72,9 +72,11 @@ def get_services():
 
 def create_service():
     ret_resp = {SUCCESS: False, MESSAGE: ""}
+    field_owner = Service.Field.owner
+    field_service_name = Service.Field.service_name
     valid_keys = [
-        Service.Field.service_name,
-        Service.Field.owner,
+        field_service_name,
+        field_owner,
         Service.Field.description,
     ]
     required_keys = valid_keys[:-1]
@@ -84,24 +86,27 @@ def create_service():
     helper.assert_user(user)
 
     din = helper.get_json_body(request)
-    din[Service.Field.owner] = user.get(User.Field.username, "")
+    username = user.get(User.Field.username, "")
+    din[field_owner] = username
 
     helper.assert_input(din, required_keys, valid_keys)
 
     action = helper.get_action(
-        din.get(Service.Field.owner, ""),
-        din.get(Service.Field.service_name, ""))
+        din.get(field_owner, ""),
+        din.get(field_service_name, ""))
     service = helper.insert_service(din)
 
     assert service is not None, \
         (409, "Service {} already exists".format(action))
 
     helper.init_action(action)
+    field_service_id = Service.Field.service_id
+    service_id = service.get(field_service_id, "")
+    helper.create_ac_node(service_id, username, True)
 
     ret_resp[SUCCESS] = True
     ret_resp[MESSAGE] = "Service {} is successfully created.".format(action)
-    ret_resp[Service.Field.service_id] = \
-        service.get(Service.Field.service_id, "")
+    ret_resp[field_service_id] = service_id
 
     return jsonify(ret_resp), 201
 
@@ -141,12 +146,14 @@ def delete_service(service_id):
         username,
         service.get(Service.Field.service_name, ""))
 
-***REMOVED***
+    try:
         wskutil.delete_action(action)
-        wskutil.delete_package(username)
+        #  wskutil.delete_package(username)
     except ServiceException as e:
         if e.http_code != 409:
-    ***REMOVED***
+            raise
+
+    helper.delete_ac_node(service_id)
 
     ret_resp[SUCCESS] = True
     ret_resp[MESSAGE] = "Service {} is successfully deleted".format(service_id)
@@ -282,6 +289,11 @@ def download_swagger(service_id):
 
 
 def invoke_service(service_id, custom_path=""):
+    ticket = request.headers.get(AUTH_HEAD, None)
+
+    assert helper.verify_ticket(ticket, service_id) is True, \
+        (401, "Unauthorized ticket")
+
     service = helper.find_service(service_id, {Service.Field.id: False})
     endpoint = service.get(Service.Field.endpoint, "")
 
